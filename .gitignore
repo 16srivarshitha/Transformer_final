@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data & Models
+data/
+*.pth
+*.pt
+best_model.pth
+final_model.pth
+
+# IDE
+.vscode/
+.idea/

@@ -1,18 +1,14 @@
 import torch
 import torch.nn as nn
-
+from attention import MultiHeadAttention
 
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout=0.1, use_multi_scale=False):
         super().__init__()
         
-        if use_multi_scale:
-            self.self_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
-            self.cross_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
-        else:
-            from attention import MultiHeadAttention
-            self.self_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
-            self.cross_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
+
+        self.self_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
+        self.cross_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
             
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),

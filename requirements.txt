@@ -1,0 +1,12 @@
+# requirements.txt
+
+# Core deep learning framework
+torch
+
+# Hugging Face ecosystem for datasets, tokenizers, and transformers
+datasets
+transformers
+tokenizers
+
+# Standard evaluation metric for machine translation
+sacrebleu

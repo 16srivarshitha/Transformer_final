@@ -3,6 +3,8 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 from transformers import PreTrainedTokenizerFast
 import os
+from torch.nn.utils.rnn import pad_sequence
+
 
 class TranslationDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=512):
@@ -21,21 +23,30 @@ class TranslationDataset(Dataset):
         src_tokens = self.tokenizer.encode(
             src_text,
             max_length=self.max_length,
-            truncation=True,
-            padding='max_length'
+            truncation=True
         )
 
         tgt_tokens = self.tokenizer.encode(
             tgt_text,
             max_length=self.max_length,
-            truncation=True,
-            padding='max_length'
+            truncation=True
         )
 
         return {
             'src': torch.tensor(src_tokens, dtype=torch.long),
             'tgt': torch.tensor(tgt_tokens, dtype=torch.long)
         }
+    
+def collate_fn(batch, pad_token_id):
+    src_batch, tgt_batch = [], []
+    for item in batch:
+        src_batch.append(item['src'])
+        tgt_batch.append(item['tgt'])
+    
+    src_batch = pad_sequence(src_batch, batch_first=True, padding_value=pad_token_id)
+    tgt_batch = pad_sequence(tgt_batch, batch_first=True, padding_value=pad_token_id)
+    
+    return {'src': src_batch, 'tgt': tgt_batch}
 
 def create_dataloaders(model_config, training_config):
 
@@ -54,6 +65,8 @@ def create_dataloaders(model_config, training_config):
     tokenizer.eos_token = "</s>"
     tokenizer.pad_token = "<pad>"
     tokenizer.unk_token = "<unk>"
+
+    pad_id = tokenizer.pad_token_id
  
     print("Loading and preparing dataset...")
     dataset = load_dataset('opus100', 'de-en', split='train').select(range(10000))
@@ -64,6 +77,9 @@ def create_dataloaders(model_config, training_config):
     
     train_data = dataset.select(range(train_size))
     val_data = dataset.select(range(train_size, train_size + val_size))
+
+    from functools import partial
+    collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
     
     # Create datasets
     train_dataset = TranslationDataset(train_data, tokenizer, model_config.max_seq_len)
@@ -75,7 +91,8 @@ def create_dataloaders(model_config, training_config):
         batch_size=training_config.batch_size, 
         shuffle=True, 
         num_workers=2,
-        pin_memory=True 
+        pin_memory=True,
+        collate_fn=collate_with_pad 
     )
     
     val_loader = DataLoader(
@@ -83,7 +100,8 @@ def create_dataloaders(model_config, training_config):
         batch_size=training_config.batch_size, 
         shuffle=False, 
         num_workers=2,
-        pin_memory=True
+        pin_memory=True,
+        collate_fn=collate_with_pad
     )
     
     return train_loader, val_loader, tokenizer

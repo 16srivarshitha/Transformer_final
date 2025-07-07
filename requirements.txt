@@ -1,4 +1,3 @@
-# requirements.txt
 
 # Core deep learning framework
 torch

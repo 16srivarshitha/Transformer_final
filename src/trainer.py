@@ -79,23 +79,29 @@ class Trainer:
         
         return total_loss / len(val_loader)
     
-    def train(self, train_loader, val_loader):
-        best_val_loss = float('inf')
+    def train(self, train_loader, val_loader, tokenizer):
+        print("Starting training...")
+        best_perplexity = float('inf')
         
         for epoch in range(self.config.num_epochs):
+            print(f"\n--- Epoch {epoch+1}/{self.config.num_epochs} ---")
+            
             train_loss = self.train_epoch(train_loader)
-            val_loss = self.validate(val_loader)
+            
+            # Now this call is correct because the 'tokenizer' is available
+            perplexity, bleu_score = self.validate(val_loader, tokenizer)
             
             self.scheduler.step()
             
-            print(f'Epoch {epoch+1}/{self.config.num_epochs}')
-            print(f'Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+            print("-" * 60)
+            print(f"Epoch {epoch+1} Summary:")
+            print(f"  - Train Loss: {train_loss:.4f}")
+            print(f"  - Validation Perplexity: {perplexity:.4f}")
+            print(f"  - BLEU Score: {bleu_score:.2f}")
+            print(f"  - Current Learning Rate: {self.scheduler.get_last_lr()[0]:.6f}")
+            print("-" * 60)
             
-            # Save best model
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            if perplexity < best_perplexity:
+                best_perplexity = perplexity
                 torch.save(self.model.state_dict(), 'best_model.pth')
-                print('Best model saved!')
-            
-            print('-' * 50)
-            
+                print(f"New best model saved with perplexity: {best_perplexity:.4f}")

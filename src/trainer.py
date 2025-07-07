@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn.functional as F
+from evaluation_metrics import EvaluationMetrics
 
 class Trainer:
     def __init__(self, model, config, device='cuda'):
@@ -60,24 +61,20 @@ class Trainer:
         
         return total_loss / len(train_loader)
     
-    def validate(self, val_loader):
+    def validate(self, val_loader, tokenizer):
         self.model.eval()
-        total_loss = 0
         
-        with torch.no_grad():
-            for batch in val_loader:
-                src = batch['src'].to(self.device)
-                tgt = batch['tgt'].to(self.device)
-                
-                tgt_input = tgt[:, :-1]
-                tgt_output = tgt[:, 1:]
-                
-                output = self.model(src, tgt_input)
-                loss = self.criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
-                
-                total_loss += loss.item()
+        # This line needs the 'tokenizer' you just added to the signature
+        evaluator = EvaluationMetrics(tokenizer)
         
-        return total_loss / len(val_loader)
+        print("\nRunning validation...")
+        perplexity = evaluator.calculate_perplexity(self.model, val_loader, self.device)
+        
+        print("Generating translations for BLEU score calculation...")
+        predictions, references = evaluator.generate_translations(self.model, val_loader, self.device)
+        bleu_score = evaluator.calculate_bleu(predictions, references)
+        
+        return perplexity, bleu_score
     
     def train(self, train_loader, val_loader, tokenizer):
         print("Starting training...")

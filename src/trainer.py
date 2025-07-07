@@ -5,28 +5,29 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn.functional as F
 from evaluation_metrics import EvaluationMetrics
 import itertools
+
+def get_lr(step, d_model, warmup_steps):
+    arg1 = step ** -0.5
+    arg2 = step * (warmup_steps ** -1.5)
+    return (d_model ** -0.5) * min(arg1, arg2)
 class Trainer:
     def __init__(self, model, config, device='cuda'):
         self.model = model.to(device)
         self.config = config
         self.device = device
         
+        self.d_model = model.src_embedding.d_model
+
         # Optimizer
         self.optimizer = Adam(
             model.parameters(), 
-            lr=config.learning_rate,
+            lr=1.0,
             betas=(config.beta1, config.beta2),
             eps=config.eps,
             weight_decay=config.weight_decay
         )
         
-        # Scheduler
-        self.scheduler = CosineAnnealingLR(
-            self.optimizer, 
-            T_max=config.num_epochs,
-            eta_min=config.min_lr
-        )
-        
+        self.step_num = 0
         # Loss function
         self.criterion = nn.CrossEntropyLoss(ignore_index=0, label_smoothing=config.label_smoothing)
         
@@ -35,6 +36,12 @@ class Trainer:
         total_loss = 0
         
         for batch_idx, batch in enumerate(train_loader):
+
+            self.step_num += 1
+            lr = get_lr(self.step_num, self.d_model, self.config.warmup_steps)
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+
             src = batch['src'].to(self.device)
             tgt = batch['tgt'].to(self.device)
             
@@ -57,7 +64,7 @@ class Trainer:
             total_loss += loss.item()
             
             if batch_idx % self.config.log_every == 0:
-                print(f'Batch {batch_idx}, Loss: {loss.item():.4f}')
+                print(f'Batch {batch_idx}, Step: {self.step_num}, Loss: {loss.item():.4f}, LR: {lr:.6f}')
         
         return total_loss / len(train_loader)
     
@@ -97,7 +104,8 @@ class Trainer:
             # Now this call is correct because the 'tokenizer' is available
             perplexity, bleu_score = self.validate(val_loader, tokenizer)
             
-            self.scheduler.step()
+            current_lr = self.optimizer.param_groups[0]['lr']
+            print(f"  - Current Learning Rate: {current_lr:.6f}")
             
             print("-" * 60)
             print(f"Epoch {epoch+1} Summary:")

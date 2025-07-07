@@ -4,7 +4,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn.functional as F
 from evaluation_metrics import EvaluationMetrics
-
+import itertools
 class Trainer:
     def __init__(self, model, config, device='cuda'):
         self.model = model.to(device)
@@ -64,14 +64,23 @@ class Trainer:
     def validate(self, val_loader, tokenizer):
         self.model.eval()
         
-        # This line needs the 'tokenizer' you just added to the signature
         evaluator = EvaluationMetrics(tokenizer)
         
         print("\nRunning validation...")
+        print("Calculating perplexity on the full validation set...")
         perplexity = evaluator.calculate_perplexity(self.model, val_loader, self.device)
         
-        print("Generating translations for BLEU score calculation...")
-        predictions, references = evaluator.generate_translations(self.model, val_loader, self.device)
+        num_bleu_batches = 100 
+        
+        print(f"Generating translations for BLEU score on a subset of {num_bleu_batches} batches...")
+        
+        val_subset_for_bleu = itertools.islice(val_loader, num_bleu_batches)
+        
+        predictions, references = evaluator.generate_translations(
+            self.model, 
+            val_subset_for_bleu, 
+            self.device
+        )
         bleu_score = evaluator.calculate_bleu(predictions, references)
         
         return perplexity, bleu_score

@@ -1,12 +1,11 @@
 import torch
-import os
 
 from config.model_config import ModelConfig
 from config.training_config import TrainingConfig
 from src.transformer import EnhancedTransformer
 from src.dataset import create_dataloaders
 from src.trainer import Trainer
-from src.evaluation_metrics import EvaluationMetrics
+# from src.evaluation_metrics import EvaluationMetrics  
 
 def main():
     print("--- Initializing Configurations ---")
@@ -37,6 +36,7 @@ def main():
     print(f"Model created with {num_params / 1e6:.2f}M parameters.")
     
     print("\n--- Initializing Trainer ---")
+
     trainer = Trainer(
         model=model, 
         tokenizer=tokenizer,
@@ -50,3 +50,6 @@ def main():
     trainer.train(train_loader, val_loader)
     
     print("\n--- Training Finished ---")
+
+if __name__ == '__main__':
+    main()

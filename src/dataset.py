@@ -69,7 +69,7 @@ def create_dataloaders(model_config, training_config):
     pad_id = tokenizer.pad_token_id
  
     print("Loading and preparing dataset...")
-    dataset = load_dataset('opus100', 'de-en', split='train')
+    dataset = load_dataset('opus100', 'de-en', split='train').select(range(100000))
     
     # Split data
     train_size = int(0.8 * len(dataset))

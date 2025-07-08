@@ -1,8 +1,8 @@
 import torch
 torch.cuda.empty_cache()
 import torch.nn as nn
-from embeddings import TokenEmbedding
-from embeddings import PositionalEncoding
+from .embeddings import TokenEmbedding
+from .embeddings import PositionalEncoding
 from encoder import Encoder
 from decoder import Decoder
 

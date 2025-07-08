@@ -7,8 +7,9 @@ from encoder import Encoder
 from decoder import Decoder
 
 class EnhancedTransformer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, tokenizer):
         super().__init__()
+        self.pad_token_id = tokenizer.pad_token_id
         
         # Embeddings
         self.src_embedding = TokenEmbedding(config.vocab_size, config.d_model)
@@ -44,8 +45,8 @@ class EnhancedTransformer(nn.Module):
         self.dropout = nn.Dropout(config.dropout)
         
     def create_mask(self, src, tgt):
-        src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
-        tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(2)
+        src_mask = (src != self.pad_token_id).unsqueeze(1).unsqueeze(2)
+        tgt_mask = (tgt != self.pad_token_id).unsqueeze(1).unsqueeze(2)
         
         # Causal mask for decoder
         seq_len = tgt.size(1)

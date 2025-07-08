@@ -27,7 +27,7 @@ class Trainer:
         def lr_lambda(current_step):
             step = max(1, current_step)
             warmup_steps = self.config.warmup_steps
-            d_model = self.config.d_model
+            d_model = self.model.src_embedding.d_model
             arg1 = step ** -0.5
             arg2 = step * (warmup_steps ** -1.5)
             return (d_model ** -0.5) * min(arg1, arg2)

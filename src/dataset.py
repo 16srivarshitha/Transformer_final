@@ -90,7 +90,7 @@ def create_dataloaders(model_config, training_config):
         train_dataset, 
         batch_size=training_config.batch_size, 
         shuffle=True, 
-        num_workers=2,
+        num_workers=4, 
         pin_memory=True,
         collate_fn=collate_with_pad 
     )
@@ -99,7 +99,7 @@ def create_dataloaders(model_config, training_config):
         val_dataset, 
         batch_size=training_config.batch_size, 
         shuffle=False, 
-        num_workers=2,
+        num_workers=4,
         pin_memory=True,
         collate_fn=collate_with_pad
     )

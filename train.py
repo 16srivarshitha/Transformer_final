@@ -1,12 +1,6 @@
-# train.py
-
 import torch
 import sys
 import os
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.join(current_dir, 'src')
-sys.path.insert(0, src_dir)
 
 from config.model_config import ModelConfig
 from config.training_config import TrainingConfig
@@ -16,33 +10,48 @@ from src.trainer import Trainer
 from src.evaluation_metrics import EvaluationMetrics
 
 def main():
-    print("Loading configurations...")
+    print("--- Initializing Configurations ---")
     model_config = ModelConfig()
     training_config = TrainingConfig()
-
-    model_config.vocab_size = 32000 
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    print("Creating dataloaders...")
+    print("\n--- Loading Data ---")
     train_loader, val_loader, tokenizer = create_dataloaders(model_config, training_config)
     print(f"Data loaded. Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
+
+    model_config.vocab_size = tokenizer.vocab_size
+    print(f"\nTokenizer loaded. Actual Vocab Size: {model_config.vocab_size}")
+    print(f"Using Pad Token ID: {tokenizer.pad_token_id}") # Confirming the correct ID is used
     
-    print("Initializing the model...")
-    model = EnhancedTransformer(model_config).to(device)
-    print(f"Model initialized. Total parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
+
+    print("\n--- Building Model ---")
+    model = EnhancedTransformer(model_config, tokenizer).to(device)
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model created with {num_params / 1e6:.2f}M parameters.")
     
-    trainer = Trainer(model, training_config, device)
-    
-    trainer.train(train_loader, val_loader, tokenizer)
-    
+    print("\n--- Initializing Trainer ---")
+    trainer = Trainer(
+        model=model, 
+        tokenizer=tokenizer,
+        config=training_config, 
+        device=device
+    )
+
+    print("\n" + "="*50)
+    print("           STARTING TRAINING")
+    print("="*50)
+    trainer.train(train_loader, val_loader)
+
     print("\n--- Training Finished ---")
     print("Running final evaluation on the best model...")
     
     best_model_path = 'best_model.pth'
     if os.path.exists(best_model_path):
-        model.load_state_dict(torch.load(best_model_path))
+
+        model = EnhancedTransformer(model_config, tokenizer).to(device)
+        model.load_state_dict(torch.load(best_model_path, map_location=device))
         print("Best model weights loaded for final evaluation.")
     else:
         print("Warning: No 'best_model.pth' found. Evaluating the last state of the model.")
@@ -56,8 +65,6 @@ def main():
     print(f"  - Final Validation Perplexity: {final_perplexity:.4f}")
     print(f"  - Inference Speed: {inference_speed:.2f} tokens/sec")
     
-    torch.save(model.state_dict(), 'final_model.pth')
-    print("\nFinal model state saved to 'final_model.pth'")
 
 if __name__ == '__main__':
     main()

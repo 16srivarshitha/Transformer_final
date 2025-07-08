@@ -6,7 +6,8 @@ from torch.optim.lr_scheduler import LambdaLR
 import itertools
 from evaluation_metrics import EvaluationMetrics
 
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import autocast
+from torch.amp import GradScaler
 
 class Trainer:
     def __init__(self, model, tokenizer, config, device='cuda'):

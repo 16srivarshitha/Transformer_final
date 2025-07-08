@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 import itertools
-from evaluation_metrics import EvaluationMetrics
+from .evaluation_metrics import EvaluationMetrics
 
 from torch.amp import autocast
 from torch.amp import GradScaler

@@ -32,7 +32,8 @@ class Trainer:
             arg2 = step * (warmup_steps ** -1.5)
             return (d_model ** -0.5) * min(arg1, arg2)
 
-        self.scheduler = LambdaLR(self.optimizer, lr_lambda)
+        self.scheduler = LambdaLR(self.optimizer, lr_lambda, last_epoch=-1)
+
         self.global_step = 0
         
         self.criterion = nn.CrossEntropyLoss(

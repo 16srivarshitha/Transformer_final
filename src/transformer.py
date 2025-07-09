@@ -56,15 +56,14 @@ class EnhancedTransformer(nn.Module):
         
     def create_mask(self, src, tgt):
         # Create padding masks - expand to [batch, 1, 1, seq_len]
-        src_mask = (src != self.pad_token_id).unsqueeze(1).unsqueeze(1)
-        tgt_mask = (tgt != self.pad_token_id).unsqueeze(1).unsqueeze(1)
+        src_mask = (src == self.pad_token_id).unsqueeze(1).unsqueeze(2)
+        tgt_mask = (tgt == self.pad_token_id).unsqueeze(1).unsqueeze(1)
         
         # Causal mask for decoder - [seq_len, seq_len]
         seq_len = tgt.size(1)
-        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=tgt.device)).bool()
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=tgt.device), diagonal=1).bool()
         
-        # Combine padding and causal masks
-        tgt_mask = tgt_mask & causal_mask.unsqueeze(0).unsqueeze(0)
+        tgt_mask = tgt_mask | causal_mask
         
         return src_mask, tgt_mask
     

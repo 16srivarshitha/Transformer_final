@@ -27,16 +27,19 @@ def main():
     print(f"Using Pad Token ID: {tokenizer.pad_token_id}") 
     
     print("\n--- Building Model ---")
-    model = EnhancedTransformer(model_config, tokenizer).to(device)
-    
-    print("Compiling the model for faster execution (first few batches will be slow)...")
-    model = torch.compile(model)
-    
+    model = EnhancedTransformer(model_config, tokenizer)
+
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model created with {num_params / 1e6:.2f}M parameters.")
-    
-    print("\n--- Initializing Trainer ---")
 
+    # Move to device first
+    model = model.to(device)
+
+    # Then compile (choose one):
+    print("Compiling the model for faster execution...")
+    model = torch.compile(model)  # OR torch.jit.script(model) for JIT
+
+    print("\n--- Initializing Trainer ---")
     trainer = Trainer(
         model=model, 
         tokenizer=tokenizer,

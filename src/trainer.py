@@ -18,12 +18,12 @@ class Trainer:
         self.pad_token_id = self.tokenizer.pad_token_id
 
         self.optimizer = AdamW(
-            model.parameters(), 
-            lr=1.0,
-            betas=(config.beta1, config.beta2),
-            eps=config.eps,
-            weight_decay=config.weight_decay
-        )
+                model.parameters(), 
+                lr=config.learning_rate,  
+                betas=(config.beta1, config.beta2),
+                eps=config.eps,
+                weight_decay=config.weight_decay
+            )
         def lr_lambda(current_step):
             step = max(1, current_step)
             warmup_steps = self.config.warmup_steps

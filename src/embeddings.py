@@ -3,17 +3,20 @@ import torch.nn as nn
 import math
 
 class TokenEmbedding(nn.Module):
-    def __init__(self, vocab_size, d_model):
+    def __init__(self, vocab_size, d_model, dropout=0.1):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.d_model = d_model
+        self.dropout = nn.Dropout(dropout)
         
     def forward(self, x):
-        return self.embedding(x) * math.sqrt(self.d_model)
+        return self.dropout(self.embedding(x) * math.sqrt(self.d_model))
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_seq_len=5000):
+    def __init__(self, d_model, max_seq_len=5000, dropout=0.1):
         super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        
         pe = torch.zeros(max_seq_len, d_model)
         position = torch.arange(0, max_seq_len).unsqueeze(1).float()
         
@@ -26,4 +29,4 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe.unsqueeze(0))
         
     def forward(self, x):
-        return x + self.pe[:, :x.size(1)]
+        return self.dropout(x + self.pe[:, :x.size(1)])

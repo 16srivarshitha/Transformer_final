@@ -20,17 +20,24 @@ class TranslationDataset(Dataset):
         src_text = item['en']
         tgt_text = item['de']
 
+        # First tokenize
         src_tokens = self.tokenizer.encode(
             src_text,
-            max_length=self.max_length,
-            truncation=True
+            max_length=self.max_length-2,  # Leave space for BOS/EOS
+            truncation=True,
+            add_special_tokens=False
         )
 
         tgt_tokens = self.tokenizer.encode(
             tgt_text,
-            max_length=self.max_length,
-            truncation=True
+            max_length=self.max_length-2,  # Leave space for BOS/EOS
+            truncation=True,
+            add_special_tokens=False
         )
+
+        # Then add BOS/EOS
+        src_tokens = [self.tokenizer.bos_token_id] + src_tokens + [self.tokenizer.eos_token_id]
+        tgt_tokens = [self.tokenizer.bos_token_id] + tgt_tokens + [self.tokenizer.eos_token_id]
 
         return {
             'src': torch.tensor(src_tokens, dtype=torch.long),
@@ -69,7 +76,7 @@ def create_dataloaders(model_config, training_config):
     pad_id = tokenizer.pad_token_id
  
     print("Loading and preparing dataset...")
-    dataset = load_dataset('opus100', 'de-en', split='train').select(range(100000))
+    dataset = load_dataset('opus100', 'de-en', split='train').select(range(10000))
     
     # Split data
     train_size = int(0.8 * len(dataset))

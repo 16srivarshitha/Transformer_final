@@ -53,7 +53,7 @@ class EvaluationMetrics:
 
     def calculate_bleu(self, predictions, references):
         bleu = BLEU()
-        return bleu.corpus_score(predictions, [references]).score
+        return bleu.corpus_score(predictions, [[ref] for ref in references]).score
 
     def calculate_perplexity(self, model, dataloader, device):
         model.eval()

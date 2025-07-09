@@ -3,16 +3,14 @@ import torch.nn as nn
 from .attention import MultiHeadAttention
 
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model, n_heads, d_ff, dropout=0.1, use_multi_scale=False):
+    def __init__(self, d_model, n_heads, d_ff, dropout=0.1):
         super().__init__()
         
-
-            
         self.self_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
             
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(d_ff, d_model)
         )
@@ -33,10 +31,10 @@ class EncoderLayer(nn.Module):
         return x
 
 class Encoder(nn.Module):
-    def __init__(self, n_layers, d_model, n_heads, d_ff, dropout=0.1, use_multi_scale=True):
+    def __init__(self, n_layers, d_model, n_heads, d_ff, dropout=0.1):
         super().__init__()
         self.layers = nn.ModuleList([
-            EncoderLayer(d_model, n_heads, d_ff, dropout, use_multi_scale)
+            EncoderLayer(d_model, n_heads, d_ff, dropout)
             for _ in range(n_layers)
         ])
         

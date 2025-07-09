@@ -12,11 +12,11 @@ class EnhancedTransformer(nn.Module):
         self.pad_token_id = tokenizer.pad_token_id
         
         # Embeddings
-        self.src_embedding = TokenEmbedding(config.vocab_size, config.d_model)
-        self.tgt_embedding = TokenEmbedding(config.vocab_size, config.d_model)
+        self.src_embedding = TokenEmbedding(config.vocab_size, config.d_model, config.dropout)
+        self.tgt_embedding = TokenEmbedding(config.vocab_size, config.d_model, config.dropout)
         
         # Positional encoding
-        self.pos_encoding = PositionalEncoding(config.d_model, config.max_seq_len)
+        self.pos_encoding = PositionalEncoding(config.d_model, config.max_seq_len, config.dropout)
         
         # Encoder and Decoder
         self.encoder = Encoder(
@@ -42,16 +42,29 @@ class EnhancedTransformer(nn.Module):
         if config.tie_weights:
             self.output_projection.weight = self.tgt_embedding.embedding.weight
             
-        self.dropout = nn.Dropout(config.dropout)
+        # Initialize weights
+        self._init_weights()
+        
+    def _init_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0, std=0.02)
         
     def create_mask(self, src, tgt):
-        src_mask = (src != self.pad_token_id).unsqueeze(1).unsqueeze(2)
-        tgt_mask = (tgt != self.pad_token_id).unsqueeze(1).unsqueeze(2)
+        # Create padding masks - expand to [batch, 1, 1, seq_len]
+        src_mask = (src != self.pad_token_id).unsqueeze(1).unsqueeze(1)
+        tgt_mask = (tgt != self.pad_token_id).unsqueeze(1).unsqueeze(1)
         
-        # Causal mask for decoder
+        # Causal mask for decoder - [seq_len, seq_len]
         seq_len = tgt.size(1)
-        causal_mask = torch.tril(torch.ones(seq_len, seq_len)).bool().to(tgt.device)
-        tgt_mask = tgt_mask & causal_mask
+        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=tgt.device)).bool()
+        
+        # Combine padding and causal masks
+        tgt_mask = tgt_mask & causal_mask.unsqueeze(0).unsqueeze(0)
         
         return src_mask, tgt_mask
     
@@ -60,12 +73,10 @@ class EnhancedTransformer(nn.Module):
         
         # Encoder
         src_emb = self.pos_encoding(self.src_embedding(src))
-        src_emb = self.dropout(src_emb)
         encoder_output = self.encoder(src_emb, src_mask)
         
         # Decoder
         tgt_emb = self.pos_encoding(self.tgt_embedding(tgt))
-        tgt_emb = self.dropout(tgt_emb)
         decoder_output = self.decoder(tgt_emb, encoder_output, tgt_mask, src_mask)
         
         # Output projection

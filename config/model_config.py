@@ -12,14 +12,14 @@ class ModelConfig:
     max_seq_len: int = 1024
     vocab_size: int = 32000
     
-    # Multi-scale attention params
-    scale_factors: List[int] = None  # [1, 2, 4] for different scales
-    n_scale_heads: int = 4  # heads per scale
+    # # Multi-scale attention params
+    # scale_factors: List[int] = None  # [1, 2, 4] for different scales
+    # n_scale_heads: int = 4  # heads per scale
     
-    # Adaptive positional encoding params
-    max_relative_position: int = 128
-    adaptive_pos_dim: int = 64
-    learnable_pos: bool = True
+    # # Adaptive positional encoding params
+    # max_relative_position: int = 128
+    # adaptive_pos_dim: int = 64
+    # learnable_pos: bool = True
     
     # Other params
     label_smoothing: float = 0.1

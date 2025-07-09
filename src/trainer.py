@@ -19,13 +19,13 @@ class Trainer:
 
         self.optimizer = AdamW(
                 model.parameters(), 
-                lr=config.learning_rate,  
+                lr=1.0 , 
                 betas=(config.beta1, config.beta2),
                 eps=config.eps,
                 weight_decay=config.weight_decay
             )
         def lr_lambda(current_step):
-            step = max(1, current_step)
+            step = current_step + 1 
             warmup_steps = self.config.warmup_steps
             d_model = self.model.src_embedding.d_model
             arg1 = step ** -0.5
@@ -63,15 +63,15 @@ class Trainer:
             
             self.scaler.scale(loss).backward()
             
-            if (batch_idx + 1) % accumulation_steps == 0:
+            if (len(train_loader) % accumulation_steps) != 0:
                 self.scaler.unscale_(self.optimizer)
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.max_grad_norm)
-                
-                self.scaler.step(self.optimizer) 
-                self.scaler.update()             
-                
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
                 self.scheduler.step()
-                self.global_step += 1
+                if self.global_step <= 100:
+                    print(f"DEBUG - Step {self.global_step}: LR = {self.optimizer.param_groups[0]['lr']:.8f}")
+                    self.global_step += 1
                 self.optimizer.zero_grad()
 
             total_loss += loss.item() * accumulation_steps

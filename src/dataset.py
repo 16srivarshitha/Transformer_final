@@ -57,8 +57,8 @@ def create_dataloaders(
     use_ddp=False, 
     rank=0, 
     world_size=1,
-    dataset_name='multi30k',
-    dataset_config='de-en',
+    dataset_name='bentrevett/multi30k',
+    dataset_config=None,
     subset_size=None,
     val_split_fraction=0.1,
     seed=42

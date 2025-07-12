@@ -74,7 +74,7 @@ def main():
     print(f"\nTokenizer loaded. Actual Vocab Size: {model_config.vocab_size}")
     
     print("\n--- Building Model ---")
-    model = EnhancedTransformer(model_config, tokenizer.pad_token_id)
+    model = EnhancedTransformer(model_config, tokenizer)
 
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model created with {num_params / 1e6:.2f}M parameters.")

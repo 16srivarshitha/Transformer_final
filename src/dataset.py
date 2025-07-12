@@ -17,9 +17,13 @@ class TranslationDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        item = self.data[idx]['translation']
-        src_text = item['en']
-        tgt_text = item['de']
+        item = self.data[idx]
+        if 'translation' in item:
+            src_text = item['translation']['en']
+            tgt_text = item['translation']['de']
+        else:
+            src_text = item['en']
+            tgt_text = item['de']
 
         src_tokens = self.tokenizer.encode(
             src_text, max_length=self.max_length-2, truncation=True, add_special_tokens=False
@@ -45,10 +49,21 @@ def collate_fn(batch, pad_token_id):
     src_batch = pad_sequence(src_batch, batch_first=True, padding_value=pad_token_id)
     tgt_batch = pad_sequence(tgt_batch, batch_first=True, padding_value=pad_token_id)
     
-    return {'src': src_batch, 'tgt': tgt_batch}
+    return {'src': src_batch, 'tgt': src_batch}
 
-
-def create_dataloaders(model_config, training_config, use_ddp=False, rank=0, world_size=1):
+def create_dataloaders(
+    model_config, 
+    training_config, 
+    use_ddp=False, 
+    rank=0, 
+    world_size=1,
+    dataset_name='multi30k',
+    dataset_config='de-en',
+    subset_size=None,
+    val_split_fraction=0.1,
+    seed=42
+):
+    
     tokenizer_path = os.path.join(os.path.dirname(__file__), '..', 'de-en-tokenizer.json')
     if not os.path.exists(tokenizer_path):
         raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}. Run tokenizer script first.")
@@ -64,13 +79,32 @@ def create_dataloaders(model_config, training_config, use_ddp=False, rank=0, wor
     pad_id = tokenizer.pad_token_id
 
     if rank == 0:
-        print("Loading and preparing dataset...")
-    dataset = load_dataset('opus100', 'de-en', split='train').select(range(training_config.dataset_subset))
+        print(f"Loading dataset '{dataset_name}' ({dataset_config})...")
     
-    train_size = int(0.9 * len(dataset))
-    train_data = dataset.select(range(train_size))
-    val_data = dataset.select(range(train_size, len(dataset)))
+    
+    try:
 
+        train_split = 'train'
+        val_split = 'validation'
+        full_dataset = load_dataset(dataset_name, dataset_config)
+        train_data = full_dataset[train_split]
+        val_data = full_dataset[val_split]
+    except (KeyError, ValueError):
+
+        if rank == 0:
+            print("No standard validation split found. Creating one manually.")
+        dataset = load_dataset(dataset_name, dataset_config, split='train')
+        
+        if subset_size is not None and subset_size < len(dataset):
+            dataset = dataset.shuffle(seed=seed).select(range(subset_size))
+
+        split_dataset = dataset.train_test_split(test_size=val_split_fraction, shuffle=True, seed=seed)
+        train_data = split_dataset['train']
+        val_data = split_dataset['test']
+
+    if rank == 0:
+        print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
+        
     train_dataset = TranslationDataset(train_data, tokenizer, model_config.max_seq_len)
     val_dataset = TranslationDataset(val_data, tokenizer, model_config.max_seq_len)
     
@@ -85,13 +119,15 @@ def create_dataloaders(model_config, training_config, use_ddp=False, rank=0, wor
         val_sampler = None
         train_shuffle = True
 
+    num_workers = training_config.get('num_workers', 2)
+
     train_loader = DataLoader(
         train_dataset, 
         batch_size=training_config.batch_size, 
         collate_fn=collate_with_pad,
         sampler=train_sampler,
         shuffle=train_shuffle,
-        num_workers=2, 
+        num_workers=num_workers, 
         pin_memory=True
     )
     
@@ -101,7 +137,7 @@ def create_dataloaders(model_config, training_config, use_ddp=False, rank=0, wor
         collate_fn=collate_with_pad,
         sampler=val_sampler,
         shuffle=False, 
-        num_workers=2,
+        num_workers=num_workers,
         pin_memory=True
     )
     

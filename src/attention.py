@@ -14,7 +14,7 @@ class MultiHeadAttention(nn.Module):
         self.w_k = nn.Linear(d_model, d_model)
         self.w_v = nn.Linear(d_model, d_model)
         self.w_o = nn.Linear(d_model, d_model)
-        
+    
         self.dropout = nn.Dropout(dropout)
         self.scale = math.sqrt(self.d_k)
         

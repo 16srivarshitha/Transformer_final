@@ -96,7 +96,7 @@ class Trainer:
  
         num_bleu_batches = 50 
         val_subset_for_bleu = itertools.islice(val_loader, num_bleu_batches)
-        predictions, references = evaluator.generate_translations(self.model, val_subset_for_bleu, self.device, max_length=self.config.max_seq_len)
+        predictions, references = evaluator.generate_translations(self.model, val_subset_for_bleu, self.device, max_length=512)
         bleu_score = evaluator.calculate_bleu(predictions, references)
         
         return perplexity, bleu_score

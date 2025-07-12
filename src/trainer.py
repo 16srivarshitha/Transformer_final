@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import LambdaLR
 import itertools
 from .evaluation_metrics import EvaluationMetrics
 
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 class Trainer:
     def __init__(self, model, tokenizer, config, device='cuda'):
@@ -53,7 +53,7 @@ class Trainer:
             tgt_input = tgt[:, :-1]
             tgt_output = tgt[:, 1:]
 
-            with autocast(device_type=self.device, dtype=torch.float16):
+            with autocast(enabled=True, dtype=torch.float16):
                 output = self.model(src, tgt_input)
                 loss = self.criterion(output.view(-1, output.size(-1)), tgt_output.view(-1))
                 loss = loss / accumulation_steps

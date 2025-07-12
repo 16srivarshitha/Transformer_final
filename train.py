@@ -29,7 +29,7 @@ def get_args():
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='Base learning rate.')
     parser.add_argument('--num_layers', type=int, default=6, help='Number of encoder/decoder layers.')
     parser.add_argument('--d_model', type=int, default=512, help='Model dimension.')
-    parser.add_argument('--dataset_name', type=str, default='multi30k', help='Dataset to use (e.g., multi30k, opus100).')
+    parser.add_argument('--dataset_name', type=str, default='bentrevett/multi30k', help='Dataset to use (e.g., multi30k, opus100).')
     parser.add_argument('--subset_size', type=int, default=None, help='Use a random subset of the dataset (e.g., 5000).')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility.')
     parser.add_argument('--resume_from', type=str, default=None, help='Path to checkpoint to resume training from.')

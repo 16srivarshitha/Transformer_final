@@ -119,7 +119,7 @@ def create_dataloaders(
         val_sampler = None
         train_shuffle = True
 
-    num_workers = training_config.get('num_workers', 2)
+    num_workers = getattr(training_config, 'num_workers', 2)
 
     train_loader = DataLoader(
         train_dataset, 

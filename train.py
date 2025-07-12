@@ -70,7 +70,7 @@ def main():
     )
     print(f"Data loaded from '{args.dataset_name}'. Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
 
-    model_config.vocab_size = tokenizer.get_vocab_size()
+    model_config.vocab_size = tokenizer.vocab_size
     print(f"\nTokenizer loaded. Actual Vocab Size: {model_config.vocab_size}")
     
     print("\n--- Building Model ---")

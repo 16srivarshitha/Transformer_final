@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     TOKENIZER_CONFIG = {
         "dataset_name": "bentrevett/multi30k",  
-        "lang_pair": "de-en",
+        "lang_pair": None,
         "vocab_size": 32000,
         "output_file": "de-en-tokenizer.json"
     }

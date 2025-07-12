@@ -53,7 +53,7 @@ def train_new_tokenizer(
 if __name__ == '__main__':
 
     TOKENIZER_CONFIG = {
-        "dataset_name": "multi30k",  
+        "dataset_name": "bentrevett/multi30k",  
         "lang_pair": "de-en",
         "vocab_size": 32000,
         "output_file": "de-en-tokenizer.json"

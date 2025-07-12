@@ -53,7 +53,7 @@ class Trainer:
             tgt_input = tgt[:, :-1]
             tgt_output = tgt[:, 1:]
 
-            with autocast(enabled=True, dtype=torch.float16):
+            with autocast('cuda', enabled=True, dtype=torch.float16):
                 output = self.model(src, tgt_input)
                 loss = self.criterion(output.view(-1, output.size(-1)), tgt_output.view(-1))
                 loss = loss / accumulation_steps

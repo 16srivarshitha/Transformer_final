@@ -15,24 +15,27 @@ class Trainer:
         self.device = device
         self.pad_token_id = self.tokenizer.pad_token_id
 
+
         self.optimizer = AdamW(
             model.parameters(), 
-            lr=1.0, 
+            lr=config.learning_rate,  
             betas=(config.beta1, config.beta2),
             eps=config.eps,
             weight_decay=config.weight_decay
         )
 
-        d_model = self.model.src_embedding.d_model
-
         def lr_lambda(current_step):
-
-            if current_step < 1000:
-                result = 0.0001 * (current_step + 1) / 1000  # Warmup to 0.0001
-            else:
-                result = 0.0001  # Fixed LR
+            step = current_step + 1
+            warmup_steps = config.warmup_steps  
             
-            print(f"Step {current_step + 1}: final_lr={result:.8f}")
+            if step < warmup_steps:
+                # Linear warmup from 0 to 1
+                result = step / warmup_steps
+            else:
+                # Square root decay after warmup
+                result = (warmup_steps / step) ** 0.5
+            
+            print(f"Step {step}: warmup_progress={step/warmup_steps:.4f}, final_lr={result * config.learning_rate:.8f}")
             return result
 
         self.scheduler = LambdaLR(self.optimizer, lr_lambda)

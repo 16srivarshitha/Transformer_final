@@ -11,6 +11,7 @@ class EvaluationMetrics:
         self.pad_token_id = tokenizer.pad_token_id
         self.eos_token_id = tokenizer.eos_token_id
         self.bos_token_id = tokenizer.bos_token_id
+        print(f"BOS: {self.bos_token_id}, EOS: {self.eos_token_id}, PAD: {self.pad_token_id}")
         
     def generate_translations(self, model, dataloader, device, max_length=60):
         model.eval()
@@ -36,7 +37,7 @@ class EvaluationMetrics:
                 finished_sentences = torch.zeros(batch_size, dtype=torch.bool, device=device)
 
                 for _ in range(max_length):
-                    with torch.autocast(device_type=str(device), dtype=torch.float16):
+                    with torch.autocast(device_type='cuda', dtype=torch.float16):
                         output = model(src, decoder_input)
                     
                     next_token_logits = output[:, -1, :]
@@ -54,7 +55,10 @@ class EvaluationMetrics:
                 
                 pred_text = self.tokenizer.batch_decode(decoder_input[:, 1:], skip_special_tokens=True)
                 
+                
                 ref_text = self.tokenizer.batch_decode(tgt, skip_special_tokens=True)
+                print(f"Sample prediction: {pred_text[0]}")
+                print(f"Sample reference: {ref_text[0]}")
                 
                 predictions.extend(pred_text)
                 references.extend(ref_text)

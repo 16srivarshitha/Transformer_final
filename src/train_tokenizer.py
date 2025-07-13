@@ -56,7 +56,7 @@ if __name__ == '__main__':
         "dataset_name": "bentrevett/multi30k",  
         "lang_pair": None,
         "vocab_size": 32000,
-        "output_file": "de-en-tokenizer.json"
+        "output_file": "en-de-tokenizer.json"
     }
 
     # Check if the tokenizer file already exists

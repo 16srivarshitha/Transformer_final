@@ -5,9 +5,9 @@ class TrainingConfig:
     # Training params
     batch_size: int = 4
     accumulation_steps: int = 16
-    learning_rate: float = 0.5        
+    learning_rate: float = 0.7        
     num_epochs: int = 10              
-    warmup_steps: int = 1000         
+    warmup_steps: int = 2500         
     max_grad_norm: float = 1.0
     label_smoothing: float = 0.2
     

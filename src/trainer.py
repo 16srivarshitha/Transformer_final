@@ -66,31 +66,30 @@ class Trainer:
                 loss = self.criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
                 loss = loss / accumulation_steps
             
+            # ADD DEBUG CODE HERE
+            if batch_idx == 0:  # First batch of each epoch
+                print("=== TRAINING DEBUG ===")
+                print(f"Encoder input shape: {src.shape}")
+                print(f"Decoder input shape: {tgt_input.shape}")
+                print(f"Target shape: {tgt_output.shape}")
+                
+                # Print first sequence
+                print(f"German (encoder): {self.tokenizer.decode(src[0].tolist())}")
+                print(f"English (decoder input): {self.tokenizer.decode(tgt_input[0].tolist())}")
+                print(f"Target: {self.tokenizer.decode(tgt_output[0].tolist())}")
+                
+                # Check logits
+                print(f"Output logits shape: {output.shape}")
+                print(f"Max logit index: {output[0, 0].argmax().item()}")
+                print(f"Loss: {loss.item() * accumulation_steps:.4f}")
+                
+                # Check what the model would predict (greedy decoding)
+                predicted_ids = output[0].argmax(dim=-1)
+                print(f"Predicted tokens: {predicted_ids.tolist()[:10]}...")  # First 10 tokens
+                print(f"Predicted text: {self.tokenizer.decode(predicted_ids.tolist())}")
+                print("=" * 50)
+            
             self.scaler.scale(loss).backward()
-            
-            if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1) == len(train_loader):
-                self.scaler.unscale_(self.optimizer)
-
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.max_grad_norm)
-                
-                # Optimizer step
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                
-                # Update learning rate
-                # self.scheduler.step()
-                self.global_step += 1
-                
-                # Reset gradients for the next accumulation cycle
-                self.optimizer.zero_grad()
-
-            total_loss += loss.item() * accumulation_steps
-            
-            if (batch_idx + 1) % self.config.log_every == 0:
-                current_lr = self.optimizer.param_groups[0]['lr']
-                print(f'Batch {batch_idx+1}/{len(train_loader)}, Step: {self.global_step}, Loss: {loss.item() * accumulation_steps:.4f}, LR: {current_lr:.7f}')
-        
-        return total_loss / len(train_loader.dataset)
 
     def validate(self, val_loader):
         self.model.eval()

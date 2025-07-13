@@ -110,6 +110,7 @@ def main():
     print("="*50)
     trainer.train(train_loader, val_loader)
     
+    
     print("\n--- Training Finished ---")
 
 if __name__ == '__main__':

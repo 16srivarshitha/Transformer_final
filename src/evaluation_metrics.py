@@ -13,11 +13,13 @@ class EvaluationMetrics:
         self.bos_token_id = tokenizer.bos_token_id
         
     def generate_translations(self, model, dataloader, device, max_length=60):
-        
         model.eval()
         predictions = []
         references = []
-            
+        
+        bos_token_id = self.tokenizer.bos_token_id
+        eos_token_id = self.tokenizer.eos_token_id
+        
         with torch.no_grad():
             for batch in dataloader:
                 src = batch['src'].to(device)
@@ -26,7 +28,7 @@ class EvaluationMetrics:
                 
                 decoder_input = torch.full(
                     (batch_size, 1), 
-                    self.bos_token_id, 
+                    bos_token_id, 
                     dtype=torch.long, 
                     device=device
                 )
@@ -45,17 +47,14 @@ class EvaluationMetrics:
                         dim=1
                     )
                     
-                    # Update finished sentences
-                    finished_sentences |= (next_token == self.eos_token_id)
+                    finished_sentences |= (next_token == eos_token_id)
                     
-                    # If all sentences are finished, we can stop early
                     if finished_sentences.all():
                         break
                 
-                # Decode predictions and references, skipping special tokens
-                pred_text = self.tokenizer.batch_decode(decoder_input, skip_special_tokens=True)
-                # Decode the target output (without the initial BOS token)
-                ref_text = self.tokenizer.batch_decode(tgt[:, 1:], skip_special_tokens=True)
+                pred_text = self.tokenizer.batch_decode(decoder_input[:, 1:], skip_special_tokens=True)
+                
+                ref_text = self.tokenizer.batch_decode(tgt, skip_special_tokens=True)
                 
                 predictions.extend(pred_text)
                 references.extend(ref_text)

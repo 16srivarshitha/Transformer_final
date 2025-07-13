@@ -78,7 +78,7 @@ class Trainer:
                 self.scaler.update()
                 
                 # Update learning rate
-                self.scheduler.step()
+                # self.scheduler.step()
                 self.global_step += 1
                 
                 # Reset gradients for the next accumulation cycle

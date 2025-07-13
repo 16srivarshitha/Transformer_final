@@ -18,27 +18,27 @@ class Trainer:
 
         self.optimizer = AdamW(
             model.parameters(), 
-            lr=config.learning_rate,  
+            lr=1e-4,  # Fixed learning rate
             betas=(config.beta1, config.beta2),
             eps=config.eps,
             weight_decay=config.weight_decay
         )
 
-        def lr_lambda(current_step):
-            step = current_step + 1
-            warmup_steps = config.warmup_steps  
+        # def lr_lambda(current_step):
+        #     step = current_step + 1
+        #     warmup_steps = config.warmup_steps  
             
-            if step < warmup_steps:
-                # Linear warmup from 0 to 1
-                result = step / warmup_steps
-            else:
-                # Square root decay after warmup
-                result = (warmup_steps / step) ** 0.5
+        #     if step < warmup_steps:
+        #         # Linear warmup from 0 to 1
+        #         result = step / warmup_steps
+        #     else:
+        #         # Square root decay after warmup
+        #         result = (warmup_steps / step) ** 0.5
             
-            print(f"Step {step}: warmup_progress={step/warmup_steps:.4f}, final_lr={result * config.learning_rate:.8f}")
-            return result
+        #     print(f"Step {step}: warmup_progress={step/warmup_steps:.4f}, final_lr={result * config.learning_rate:.8f}")
+        #     return result
 
-        self.scheduler = LambdaLR(self.optimizer, lr_lambda)
+        # self.scheduler = LambdaLR(self.optimizer, lr_lambda)
 
         self.criterion = nn.CrossEntropyLoss(
             ignore_index=self.pad_token_id, 

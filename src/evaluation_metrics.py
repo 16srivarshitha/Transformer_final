@@ -43,23 +43,24 @@ class EvaluationMetrics:
                     next_token_logits = output[:, -1, :]
                     next_token_logits = next_token_logits / 0.8  # temperature
                     next_token = torch.multinomial(torch.softmax(next_token_logits, dim=-1), 1).squeeze(1)
-
-                    if decoder_input.size(1) == 1:  # Only BOS token
-                        decoder_input = torch.cat([decoder_input, torch.tensor([[self.eos_token_id]], device=device)], dim=1)
                     
+                    # Add the predicted token to decoder input
                     decoder_input = torch.cat(
                         [decoder_input, next_token.unsqueeze(1)], 
                         dim=1
                     )
                     
+                    # Check if any sequences generated EOS token
                     finished_sentences |= (next_token == eos_token_id)
                     
+                    # Break if all sequences are finished
                     if finished_sentences.all():
                         break
                 
+                # Decode predictions (skip BOS token)
                 pred_text = self.tokenizer.batch_decode(decoder_input[:, 1:], skip_special_tokens=True)
                 
-                
+                # Decode references
                 ref_text = self.tokenizer.batch_decode(tgt, skip_special_tokens=True)
                 print(f"Sample prediction: {pred_text[0]}")
                 print(f"Sample reference: {ref_text[0]}")

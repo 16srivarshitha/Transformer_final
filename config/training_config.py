@@ -5,18 +5,18 @@ class TrainingConfig:
     # Training params
     batch_size: int = 4
     accumulation_steps: int = 16
-    learning_rate: float = 1.0        
+    learning_rate: float = 0.5        
     num_epochs: int = 10              
     warmup_steps: int = 1000         
     max_grad_norm: float = 1.0
-    label_smoothing: float = 0.1
+    label_smoothing: float = 0.2
     
     # Optimizer params
     optimizer: str = "adamw"
     beta1: float = 0.9
     beta2: float = 0.98
     eps: float = 1e-9
-    weight_decay: float = 0.01
+    weight_decay: float = 0.1
     
     # Scheduler params
     scheduler: str = "warmup_cosine"

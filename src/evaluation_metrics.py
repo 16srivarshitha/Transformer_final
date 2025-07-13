@@ -43,6 +43,9 @@ class EvaluationMetrics:
                     next_token_logits = output[:, -1, :]
                     next_token_logits = next_token_logits / 0.8  # temperature
                     next_token = torch.multinomial(torch.softmax(next_token_logits, dim=-1), 1).squeeze(1)
+
+                    if decoder_input.size(1) == 1:  # Only BOS token
+                        decoder_input = torch.cat([decoder_input, torch.tensor([[self.eos_token_id]], device=device)], dim=1)
                     
                     decoder_input = torch.cat(
                         [decoder_input, next_token.unsqueeze(1)], 

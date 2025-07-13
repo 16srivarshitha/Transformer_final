@@ -26,19 +26,13 @@ class Trainer:
         d_model = self.model.src_embedding.d_model
 
         def lr_lambda(current_step):
-            step = current_step + 1
-            warmup_steps = self.config.warmup_steps  # Should be 4000
-            d_model = self.model.src_embedding.d_model
+
+            if current_step < 1000:
+                result = 0.0001 * (current_step + 1) / 1000  # Warmup to 0.0001
+            else:
+                result = 0.0001  # Fixed LR
             
-            # Original paper formula
-            arg1 = step ** -0.5
-            arg2 = step * (warmup_steps ** -1.5)
-            
-            
-            base_lr = 1.0 
-            result = base_lr * (d_model ** -0.5) * min(arg1, arg2)
-            
-            print(f"Step {step}: arg1={arg1:.8f}, arg2={arg2:.8f}, min={min(arg1, arg2):.8f}, final_lr={result:.8f}")
+            print(f"Step {current_step + 1}: final_lr={result:.8f}")
             return result
 
         self.scheduler = LambdaLR(self.optimizer, lr_lambda)

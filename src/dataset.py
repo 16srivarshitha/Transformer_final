@@ -64,7 +64,7 @@ def create_dataloaders(
     seed=42
 ):
     
-    tokenizer_path = os.path.join(os.path.dirname(__file__), '..', 'de-en-tokenizer.json')
+    tokenizer_path = os.path.join(os.path.dirname(__file__), '..', 'en-de-tokenizer.json')
     if not os.path.exists(tokenizer_path):
         raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}. Run tokenizer script first.")
 

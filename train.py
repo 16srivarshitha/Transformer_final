@@ -80,6 +80,12 @@ def main():
     print(f"Model created with {num_params / 1e6:.2f}M parameters.")
 
     model = model.to(device)
+    print(f"Model vocab size: {model.decoder.output_projection.out_features}")
+    print(f"Tokenizer vocab size: {len(tokenizer)}")
+    print(f"Token ID 0: '{tokenizer.decode([0])}'")
+    print(f"Token ID 1: '{tokenizer.decode([1])}'")
+    print(f"Token ID 2: '{tokenizer.decode([2])}'")
+    print(f"Token ID 3: '{tokenizer.decode([3])}'")
 
     if args.resume_from and os.path.exists(args.resume_from):
         print(f"Resuming training from checkpoint: {args.resume_from}")

@@ -24,21 +24,21 @@ class Trainer:
             weight_decay=config.weight_decay
         )
 
-        # def lr_lambda(current_step):
-        #     step = current_step + 1
-        #     warmup_steps = config.warmup_steps  
+        def lr_lambda(current_step):
+            step = current_step + 1
+            warmup_steps = config.warmup_steps  
             
-        #     if step < warmup_steps:
-        #         # Linear warmup from 0 to 1
-        #         result = step / warmup_steps
-        #     else:
-        #         # Square root decay after warmup
-        #         result = (warmup_steps / step) ** 0.5
+            if step < warmup_steps:
+                # Linear warmup from 0 to 1
+                result = step / warmup_steps
+            else:
+                # Square root decay after warmup
+                result = (warmup_steps / step) ** 0.5
             
-        #     print(f"Step {step}: warmup_progress={step/warmup_steps:.4f}, final_lr={result * config.learning_rate:.8f}")
-        #     return result
+            print(f"Step {step}: warmup_progress={step/warmup_steps:.4f}, final_lr={result * config.learning_rate:.8f}")
+            return result
 
-        # self.scheduler = LambdaLR(self.optimizer, lr_lambda)
+        self.scheduler = LambdaLR(self.optimizer, lr_lambda)
 
         self.criterion = nn.CrossEntropyLoss(
             ignore_index=self.pad_token_id, 
@@ -66,7 +66,6 @@ class Trainer:
                 loss = self.criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
                 loss = loss / accumulation_steps
             
-            # ADD DEBUG CODE HERE
             if batch_idx == 0:  # First batch of each epoch
                 print("=== TRAINING DEBUG ===")
                 print(f"Encoder input shape: {src.shape}")
@@ -90,6 +89,19 @@ class Trainer:
                 print("=" * 50)
             
             self.scaler.scale(loss).backward()
+            if (batch_idx + 1) % accumulation_steps == 0:
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad()
+                self.global_step += 1
+                
+            total_loss += loss.item() * accumulation_steps
+
+        if (batch_idx + 1) % accumulation_steps != 0:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
+        return total_loss / len(train_loader)
 
     def validate(self, val_loader):
         self.model.eval()

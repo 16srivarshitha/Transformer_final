@@ -18,26 +18,40 @@ class TranslationDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        item = self.data[idx]  
-        
+        item = self.data[idx]
         if 'translation' in item:
-            src_text = item['translation'][self.lang_keys[0]]  # Accesses item['translation']['en']
-            tgt_text = item['translation'][self.lang_keys[1]]  # Accesses item['translation']['de']
+            src_text = item['translation'][self.lang_keys[0]]
+            tgt_text = item['translation'][self.lang_keys[1]]
         else:
             src_text = item[self.lang_keys[0]]
             tgt_text = item[self.lang_keys[1]]
 
-        src_tokens = self.tokenizer.encode(
-        src_text, max_length=self.max_length - 2, truncation=True
+        # Encode the text but DO NOT add special tokens automatically yet.
+        # The .encode() method returns an Encoding object. We need the .ids attribute.
+        src_encoding = self.tokenizer.encode(
+            src_text, 
+            add_special_tokens=False, # We will add them manually
+            max_length=self.max_length - 2, # Account for BOS/EOS
+            truncation=True
         )
-        tgt_tokens = self.tokenizer.encode(
-            tgt_text, max_length=self.max_length - 2, truncation=True
+        tgt_encoding = self.tokenizer.encode(
+            tgt_text,
+            add_special_tokens=False,
+            max_length=self.max_length - 2,
+            truncation=True
         )
 
-        # If src_tokens is None, this line will fail
+        # Extract the list of integer IDs
+        src_token_ids = src_encoding.ids
+        tgt_token_ids = tgt_encoding.ids
+
+        # Manually add the special tokens
+        src_final_tokens = [self.tokenizer.bos_token_id] + src_token_ids + [self.tokenizer.eos_token_id]
+        tgt_final_tokens = [self.tokenizer.bos_token_id] + tgt_token_ids + [self.tokenizer.eos_token_id]
+        
         return {
-            'src': torch.tensor(src_tokens, dtype=torch.long), 
-            'tgt': torch.tensor(tgt_tokens, dtype=torch.long)
+            'src': torch.tensor(src_final_tokens, dtype=torch.long),
+            'tgt': torch.tensor(tgt_final_tokens, dtype=torch.long)
         }
 
 def collate_fn(batch, pad_token_id):

@@ -28,17 +28,15 @@ class TranslationDataset(Dataset):
             tgt_text = item[self.lang_keys[1]]
 
         src_tokens = self.tokenizer.encode(
-            src_text, max_length=self.max_length-2, truncation=True, add_special_tokens=False
+        src_text, max_length=self.max_length - 2, truncation=True
         )
         tgt_tokens = self.tokenizer.encode(
-            tgt_text, max_length=self.max_length-2, truncation=True, add_special_tokens=False
+            tgt_text, max_length=self.max_length - 2, truncation=True
         )
 
-        src_tokens = [self.tokenizer.bos_token_id] + src_tokens[1:-1] + [self.tokenizer.eos_token_id]
-        tgt_tokens = [self.tokenizer.bos_token_id] + tgt_tokens[1:-1] + [self.tokenizer.eos_token_id]
-
+        # If src_tokens is None, this line will fail
         return {
-            'src': torch.tensor(src_tokens, dtype=torch.long),
+            'src': torch.tensor(src_tokens, dtype=torch.long), 
             'tgt': torch.tensor(tgt_tokens, dtype=torch.long)
         }
 

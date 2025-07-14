@@ -8,10 +8,11 @@ from torch.nn.utils.rnn import pad_sequence
 from functools import partial
 
 class TranslationDataset(Dataset):
-    def __init__(self, data, tokenizer, max_length=512):
+    def __init__(self, data, tokenizer, max_length=512, lang_keys=('en', 'de')):
         self.data = data
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.lang_keys = lang_keys
 
     def __len__(self):
         return len(self.data)

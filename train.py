@@ -69,6 +69,7 @@ def main():
     train_loader, val_loader, tokenizer = create_dataloaders(
         model_config, 
         training_config,
+        tokenizer_path="en-de-tokenizer.json",
         dataset_name=args.dataset_name,
         subset_size=args.subset_size,
         seed=args.seed

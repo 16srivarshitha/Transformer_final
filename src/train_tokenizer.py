@@ -34,21 +34,26 @@ def train_new_tokenizer(
         print(f"Error loading dataset: {e}")
         return False
 
+    # --- THIS IS THE CORRECTED FUNCTION ---
     def get_training_corpus(batch_size=1000):
+        """Generator that yields batches of text for tokenizer training."""
+        is_nested = 'translation' in dataset.features
+
         for i in range(0, len(dataset), batch_size):
-            batch = dataset[i:i + batch_size]
-            texts = []
+            batch = dataset[i: i + batch_size]
             
-            if 'translation' in dataset.features:
-                for item in batch:  
-                    texts.append(item['translation'][lang_keys[0]])
-                    texts.append(item['translation'][lang_keys[1]])
+            if is_nested:
+                translation_pairs = batch['translation']
+                
+                source_sentences = [pair[lang_keys[0]] for pair in translation_pairs]
+                target_sentences = [pair[lang_keys[1]] for pair in translation_pairs]
+                
+                yield source_sentences + target_sentences
             else:
-                for item in batch: 
-                    texts.append(item[lang_keys[0]])
-                    texts.append(item[lang_keys[1]])
-            
-            yield texts
+                source_sentences = batch[lang_keys[0]]
+                target_sentences = batch[lang_keys[1]]
+
+                yield source_sentences + target_sentences
     
     print("Initializing a new BPE tokenizer...")
     tokenizer = Tokenizer(BPE(unk_token="<unk>"))

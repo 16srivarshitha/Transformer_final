@@ -55,15 +55,24 @@ class EnhancedTransformer(nn.Module):
                 nn.init.normal_(module.weight, mean=0, std=0.02)
         
     def create_mask(self, src, tgt):
-        # Create padding masks - expand to [batch, 1, 1, seq_len]
-        src_mask = (src == self.pad_token_id).unsqueeze(1).unsqueeze(2)
-        tgt_mask = (tgt == self.pad_token_id).unsqueeze(1).unsqueeze(1)
+        batch_size = src.size(0)
+        src_seq_len = src.size(1)
+        tgt_seq_len = tgt.size(1)
         
-        # Causal mask for decoder - [seq_len, seq_len]
-        seq_len = tgt.size(1)
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=tgt.device), diagonal=1).bool()
+        # Shape: [batch_size, 1, 1, src_seq_len]
+        src_mask = (src != self.pad_token_id).unsqueeze(1).unsqueeze(2)
         
-        tgt_mask = tgt_mask | causal_mask
+        # Target padding mask: 1 for valid tokens, 0 for padding
+        # Shape: [batch_size, 1, tgt_seq_len]
+        tgt_padding_mask = (tgt != self.pad_token_id).unsqueeze(1)
+        
+        # Causal mask for decoder: prevent looking at future tokens
+        # Shape: [tgt_seq_len, tgt_seq_len]
+        causal_mask = torch.tril(torch.ones(tgt_seq_len, tgt_seq_len, device=tgt.device))
+        
+        # Combine padding and causal masks
+        # Shape: [batch_size, 1, tgt_seq_len, tgt_seq_len]
+        tgt_mask = tgt_padding_mask.unsqueeze(-1) & causal_mask.unsqueeze(0)
         
         return src_mask, tgt_mask
     

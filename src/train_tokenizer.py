@@ -63,12 +63,12 @@ def train_new_tokenizer(
         special_tokens=["<unk>", "<s>", "</s>", "<pad>"],
         show_progress=True
     )
-
-    # Train the tokenizer
+    num_sentences = len(dataset) * 2 
+    
     tokenizer.train_from_iterator(
         get_training_corpus(), 
         trainer=trainer, 
-        length=len(dataset) * 2  # *2 because we yield both languages
+        length=num_sentences 
     )
 
     # Configure padding

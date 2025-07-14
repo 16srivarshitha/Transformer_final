@@ -4,7 +4,7 @@ from typing import Optional
 @dataclass
 class DataConfig:
     # Dataset params
-    dataset_name: str = "wmt14"
+    dataset_name: str = "bentrevett/multi30k"
     source_lang: str = "en"
     target_lang: str = "de"
     train_split: str = "train"

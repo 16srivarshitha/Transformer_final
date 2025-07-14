@@ -35,19 +35,16 @@ def train_new_tokenizer(
         return False
 
     def get_training_corpus(batch_size=1000):
-        """Generator that yields batches of text for tokenizer training"""
         for i in range(0, len(dataset), batch_size):
             batch = dataset[i:i + batch_size]
             texts = []
             
-            # Handle Multi30k structure with 'translation' key
             if 'translation' in dataset.features:
-                for item in batch:
-                    texts.append(item['translation'][lang_keys[0]])  # English
-                    texts.append(item['translation'][lang_keys[1]])  # German
+                for item in batch:  
+                    texts.append(item['translation'][lang_keys[0]])
+                    texts.append(item['translation'][lang_keys[1]])
             else:
-                # Handle direct key structure (fallback)
-                for item in batch:
+                for item in batch: 
                     texts.append(item[lang_keys[0]])
                     texts.append(item[lang_keys[1]])
             

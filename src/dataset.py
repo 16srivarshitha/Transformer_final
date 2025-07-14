@@ -17,10 +17,11 @@ class TranslationDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        item = self.data[idx]
+        item = self.data[idx]  
+        
         if 'translation' in item:
-            src_text = item['translation'][self.lang_keys[0]]
-            tgt_text = item['translation'][self.lang_keys[1]]
+            src_text = item['translation'][self.lang_keys[0]]  # Accesses item['translation']['en']
+            tgt_text = item['translation'][self.lang_keys[1]]  # Accesses item['translation']['de']
         else:
             src_text = item[self.lang_keys[0]]
             tgt_text = item[self.lang_keys[1]]

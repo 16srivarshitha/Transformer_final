@@ -49,7 +49,7 @@ def collate_fn(batch, pad_token_id):
     src_batch = pad_sequence(src_batch, batch_first=True, padding_value=pad_token_id)
     tgt_batch = pad_sequence(tgt_batch, batch_first=True, padding_value=pad_token_id)
     
-    return {'src': src_batch, 'tgt': src_batch}
+    return {'src': src_batch, 'tgt': tgt_batch}
 
 def create_dataloaders(
     model_config, 

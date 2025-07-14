@@ -90,7 +90,7 @@ class EvaluationMetrics:
                 tgt_input = tgt[:, :-1]
                 tgt_output = tgt[:, 1:]
                 
-                with torch.autocast(device_type=str(device), dtype=torch.float16):
+                with torch.autocast(device_type='cuda', dtype=torch.float16):
                     output = model(src, tgt_input)
                     # The loss for the entire batch, summed up (due to reduction='sum')
                     loss = criterion(output.view(-1, output.size(-1)), tgt_output.reshape(-1))

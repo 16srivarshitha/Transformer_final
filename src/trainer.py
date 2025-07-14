@@ -18,7 +18,7 @@ class Trainer:
 
         self.optimizer = AdamW(
             model.parameters(), 
-            lr=1e-4,  # Fixed learning rate
+            lr=config.learning_rate,  
             betas=(config.beta1, config.beta2),
             eps=config.eps,
             weight_decay=config.weight_decay
@@ -92,6 +92,7 @@ class Trainer:
             if (batch_idx + 1) % accumulation_steps == 0:
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+                self.scheduler.step()  
                 self.optimizer.zero_grad()
                 self.global_step += 1
                 

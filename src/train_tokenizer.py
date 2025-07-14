@@ -13,44 +13,113 @@ def train_new_tokenizer(
     output_file,
     lang_keys=('en', 'de')
 ):
-    print(f"Loading '{dataset_name} ({lang_pair})' for tokenizer training...")
-    # Load the dataset for the specified language pair
-    dataset = load_dataset(dataset_name, lang_pair, split='train')
+    print(f"Loading '{dataset_name}' for tokenizer training...")
+    
+    try:
+        dataset = load_dataset(dataset_name, lang_pair, split='train')
+        print(f"Dataset loaded successfully with {len(dataset):,} samples")
+        
+        # Validate dataset structure
+        sample = dataset[0]
+        if 'translation' in sample:
+            print("Dataset structure: translation key found")
+            print(f"Sample EN: {sample['translation'][lang_keys[0]][:50]}...")
+            print(f"Sample DE: {sample['translation'][lang_keys[1]][:50]}...")
+        else:
+            print("Dataset structure: direct keys")
+            print(f"Sample EN: {sample[lang_keys[0]][:50]}...")
+            print(f"Sample DE: {sample[lang_keys[1]][:50]}...")
+            
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        return False
 
     def get_training_corpus(batch_size=1000):
+        """Generator that yields batches of text for tokenizer training"""
         for i in range(0, len(dataset), batch_size):
             batch = dataset[i:i + batch_size]
-            # Handle different dataset structures ('translation' key vs direct)
-            if 'translation' in batch:
-                yield [item[lang_keys[0]] for item in batch['translation']] + \
-                      [item[lang_keys[1]] for item in batch['translation']]
+            texts = []
+            
+            # Handle Multi30k structure with 'translation' key
+            if 'translation' in dataset.features:
+                for item in batch:
+                    texts.append(item['translation'][lang_keys[0]])  # English
+                    texts.append(item['translation'][lang_keys[1]])  # German
             else:
-                yield batch[lang_keys[0]] + batch[lang_keys[1]]
+                # Handle direct key structure (fallback)
+                for item in batch:
+                    texts.append(item[lang_keys[0]])
+                    texts.append(item[lang_keys[1]])
+            
+            yield texts
     
     print("Initializing a new BPE tokenizer...")
     tokenizer = Tokenizer(BPE(unk_token="<unk>"))
     tokenizer.pre_tokenizer = Whitespace()
 
     print(f"Training the tokenizer with vocab size {vocab_size}. This may take a few minutes...")
-    trainer = BpeTrainer(vocab_size=vocab_size, special_tokens=["<unk>", "<s>", "</s>", "<pad>"])
+    trainer = BpeTrainer(
+        vocab_size=vocab_size, 
+        special_tokens=["<unk>", "<s>", "</s>", "<pad>"],
+        show_progress=True
+    )
 
-    tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer, length=len(dataset))
+    # Train the tokenizer
+    tokenizer.train_from_iterator(
+        get_training_corpus(), 
+        trainer=trainer, 
+        length=len(dataset) * 2  # *2 because we yield both languages
+    )
 
+    # Configure padding
     pad_token_id = tokenizer.token_to_id("<pad>")
     if pad_token_id is not None:
         tokenizer.enable_padding(pad_id=pad_token_id, pad_token="<pad>")
+        print(f"Padding enabled with token ID: {pad_token_id}")
     else:
         print("Warning: '<pad>' token not found after training!")
 
+    # Create output directory if it doesn't exist
     output_dir = os.path.dirname(output_file)
-    if not os.path.exists(output_dir) and output_dir != '':
+    if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
+        print(f"Created directory: {output_dir}")
         
+    # Save the tokenizer
     tokenizer.save(output_file)
     print(f"Tokenizer successfully trained and saved to {output_file}")
+    
+    # Test the tokenizer
+    print("\nTesting tokenizer...")
+    test_sentences = [
+        "Hello world, this is a test sentence.",
+        "Hallo Welt, das ist ein Testsatz.",
+        "The quick brown fox jumps over the lazy dog."
+    ]
+    
+    for test_text in test_sentences:
+        encoded = tokenizer.encode(test_text)
+        decoded = tokenizer.decode(encoded.ids)
+        print(f"Original: {test_text}")
+        print(f"Tokens: {encoded.tokens[:10]}...")  # Show first 10 tokens
+        print(f"IDs: {encoded.ids[:10]}...")  # Show first 10 IDs
+        print(f"Decoded: {decoded}")
+        print("-" * 50)
+    
+    # Print tokenizer stats
+    print(f"\nTokenizer Statistics:")
+    print(f"Vocabulary size: {tokenizer.get_vocab_size()}")
+    print(f"Special tokens:")
+    for token in ["<unk>", "<s>", "</s>", "<pad>"]:
+        token_id = tokenizer.token_to_id(token)
+        print(f"  {token}: {token_id}")
+    
+    return True
 
 
 if __name__ == '__main__':
+    
+    
 
     TOKENIZER_CONFIG = {
         "dataset_name": "bentrevett/multi30k",  

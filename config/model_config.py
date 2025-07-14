@@ -1,5 +1,5 @@
+# config/model_config.py
 from dataclasses import dataclass
-from typing import List
 
 @dataclass
 class ModelConfig:
@@ -8,11 +8,10 @@ class ModelConfig:
     n_heads: int = 8
     n_layers: int = 6
     d_ff: int = 2048
-    dropout: float = 0.3
-    max_seq_len: int = 1024
-    vocab_size: int = 32000
+    dropout: float = 0.1
+    max_seq_len: int = 512 
+    vocab_size: int = 32000 
     
     # Other params
-    label_smoothing: float = 0.2
+    label_smoothing: float = 0.1
     tie_weights: bool = True
-    

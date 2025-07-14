@@ -19,11 +19,11 @@ class TranslationDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         if 'translation' in item:
-            src_text = item['translation']['en']
-            tgt_text = item['translation']['de']
+            src_text = item['translation'][self.lang_keys[0]]
+            tgt_text = item['translation'][self.lang_keys[1]]
         else:
-            src_text = item['en']
-            tgt_text = item['de']
+            src_text = item[self.lang_keys[0]]
+            tgt_text = item[self.lang_keys[1]]
 
         src_tokens = self.tokenizer.encode(
             src_text, max_length=self.max_length-2, truncation=True, add_special_tokens=False
@@ -32,8 +32,8 @@ class TranslationDataset(Dataset):
             tgt_text, max_length=self.max_length-2, truncation=True, add_special_tokens=False
         )
 
-        src_tokens = [self.tokenizer.bos_token_id] + src_tokens + [self.tokenizer.eos_token_id]
-        tgt_tokens = [self.tokenizer.bos_token_id] + tgt_tokens + [self.tokenizer.eos_token_id]
+        src_tokens = [self.tokenizer.bos_token_id] + src_tokens[1:-1] + [self.tokenizer.eos_token_id]
+        tgt_tokens = [self.tokenizer.bos_token_id] + tgt_tokens[1:-1] + [self.tokenizer.eos_token_id]
 
         return {
             'src': torch.tensor(src_tokens, dtype=torch.long),
@@ -53,7 +53,8 @@ def collate_fn(batch, pad_token_id):
 
 def create_dataloaders(
     model_config, 
-    training_config, 
+    training_config,
+    tokenizer_path, 
     use_ddp=False, 
     rank=0, 
     world_size=1,
@@ -72,11 +73,7 @@ def create_dataloaders(
         print(f"Loading tokenizer from {tokenizer_path}...")
         
     tokenizer = PreTrainedTokenizerFast(tokenizer_file=tokenizer_path)
-    tokenizer.bos_token = "<s>"
-    tokenizer.eos_token = "</s>"
-    tokenizer.pad_token = "<pad>"
-    tokenizer.unk_token = "<unk>"
-    pad_id = tokenizer.pad_token_id
+    pad_id = tokenizer.pad_token_id    
 
     if rank == 0:
         print(f"Loading dataset '{dataset_name}' ({dataset_config})...")

@@ -20,7 +20,6 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
 
 def get_args():
-    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Train a Transformer model.")
     
 
@@ -35,10 +34,16 @@ def get_args():
     parser.add_argument('--resume_from', type=str, default=None, help='Path to checkpoint to resume training from.')
     parser.add_argument('--no_compile', action='store_true', help='Disable torch.compile for compatibility.')
 
+    parser.add_argument('--dry_run', action='store_true', help='Run a quick test on a small subset.')
     return parser.parse_args()
 
 def main():
     args = get_args()
+    if args.dry_run:
+        print("!!! RUNNING IN DRY RUN MODE !!!")
+        args.subset_size = 200 # Use a very small subset for the test
+        args.num_epochs = 1   # Only run one epoch
+        args.batch_size = 8
     
     set_seed(args.seed)
     print(f"--- Reproducibility ensured with random seed: {args.seed} ---")

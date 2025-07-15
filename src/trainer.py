@@ -77,6 +77,27 @@ class Trainer:
 
         perplexity = self.evaluator.calculate_perplexity(self.model, val_loader, self.device)
         predictions, references = self.evaluator.generate_translations(self.model, val_subset_for_bleu, self.device)
+        
+        # DEBUG: Check what's actually being generated
+        print(f"\nDEBUG: Total predictions: {len(predictions)}")
+        print(f"DEBUG: Total references: {len(references)}")
+        
+        # Sample some predictions and references
+        for i in range(min(5, len(predictions))):
+            print(f"\nSample {i}:")
+            print(f"  Prediction: '{predictions[i]}'")
+            print(f"  Reference:  '{references[i]}'")
+            print(f"  Pred length: {len(predictions[i].split())}")
+            print(f"  Ref length: {len(references[i].split())}")
+        
+        # Check if predictions are mostly empty or repetitive
+        empty_preds = sum(1 for p in predictions if len(p.strip()) == 0)
+        period_preds = sum(1 for p in predictions if p.strip() == ".")
+        
+        print(f"\nDEBUG Stats:")
+        print(f"  Empty predictions: {empty_preds}/{len(predictions)}")
+        print(f"  Period-only predictions: {period_preds}/{len(predictions)}")
+        
         bleu_score = self.evaluator.calculate_bleu(predictions, references)
         
         return perplexity, bleu_score

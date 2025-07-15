@@ -9,3 +9,6 @@ tokenizers
 
 # Standard evaluation metric for machine translation
 sacrebleu
+
+#plotting
+matplotlib

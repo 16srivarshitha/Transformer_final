@@ -269,7 +269,7 @@ def main():
         logger.info("!!! RUNNING IN DRY RUN MODE !!!")
         args.subset_size = 200
         args.num_epochs = 2
-        args.batch_size = 256
+        args.batch_size = 16
         args.save_every = 100
     
     # Validate arguments
@@ -341,6 +341,8 @@ def main():
     try:
         trainer.train(train_loader, val_loader)
         logger.info("Training completed successfully!")
+
+        trainer.plot_history()
         
     except KeyboardInterrupt:
         logger.info("Training interrupted by user")

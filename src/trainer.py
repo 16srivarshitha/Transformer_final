@@ -10,6 +10,7 @@ from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 import os
 import logging
+import matplotlib.pyplot as plt
 
 class Trainer:
     def __init__(self, model, tokenizer, config, device='cuda'):
@@ -51,6 +52,12 @@ class Trainer:
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
+
+        self.history = {
+            'train_loss': [],
+            'perplexity': [],
+            'bleu_score': []
+        }
 
     def train_epoch(self, train_loader):
         self.model.train()
@@ -249,8 +256,12 @@ class Trainer:
             
             with torch.no_grad():
                 perplexity, bleu_score = self.validate(val_loader)
-            
+                self.history['train_loss'].append(train_loss)
+                self.history['perplexity'].append(perplexity)
+                self.history['bleu_score'].append(bleu_score)
+                
             current_lr = self.optimizer.param_groups[0]['lr']
+
             
             # Comprehensive epoch summary
             self._print_epoch_summary(epoch, train_loss, perplexity, bleu_score, current_lr)
@@ -309,3 +320,40 @@ class Trainer:
     def _should_early_stop(self):
         """Check if training should be stopped early"""
         return self.patience_counter >= self.patience
+    def plot_history(self, save_path="training_plots.png"):
+        """Plots the training history and saves it to a file."""
+        num_epochs = len(self.history['train_loss'])
+        if num_epochs == 0:
+            print("No history to plot.")
+            return
+            
+        epochs = range(1, num_epochs + 1)
+        
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
+        
+        # Plot Training Loss
+        ax1.plot(epochs, self.history['train_loss'], 'bo-', label='Training Loss')
+        ax1.set_ylabel('Loss')
+        ax1.set_title('Training Loss')
+        ax1.legend()
+        ax1.grid(True)
+        
+        # Plot Perplexity
+        ax2.plot(epochs, self.history['perplexity'], 'go-', label='Validation Perplexity')
+        ax2.set_ylabel('Perplexity')
+        ax2.set_title('Validation Perplexity')
+        ax2.legend()
+        ax2.grid(True)
+        
+        # Plot BLEU Score
+        ax3.plot(epochs, self.history['bleu_score'], 'ro-', label='Validation BLEU Score')
+        ax3.set_ylabel('BLEU Score')
+        ax3.set_xlabel('Epoch')
+        ax3.set_title('Validation BLEU Score')
+        ax3.legend()
+        ax3.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig(save_path)
+        print(f"Training plots saved to {save_path}")
+        plt.show()

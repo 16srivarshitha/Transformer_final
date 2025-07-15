@@ -122,23 +122,18 @@ def create_dataloaders(
     except (KeyError, ValueError):
         if rank == 0:
             print("No standard validation split found. Creating one manually.")
-        dataset = load_dataset(dataset_name, dataset_config, split='train')
-        
-        if subset_size is not None and subset_size < len(dataset):
-            dataset = dataset.shuffle(seed=seed).select(range(subset_size))
+        train_data = load_dataset(dataset_name, dataset_config, split='train')
+        val_data = load_dataset(dataset_name, dataset_config, split='validation')
 
-        split_dataset = dataset.train_test_split(test_size=val_split_fraction, shuffle=True, seed=seed)
-        train_data = split_dataset['train']
-        val_data = split_dataset['test']
+        if subset_size is not None and subset_size < len(train_data):
+            train_data = train_data.shuffle(seed=seed).select(range(subset_size))
 
-    if rank == 0:
-        print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
-        
-    train_dataset = TranslationDataset(train_data, tokenizer, model_config.max_seq_len)
-    val_dataset = TranslationDataset(val_data, tokenizer, model_config.max_seq_len)
-    
-    collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
-    
+
+        train_dataset = TranslationDataset(train_data, tokenizer, model_config.max_seq_len)
+        val_dataset = TranslationDataset(val_data, tokenizer, model_config.max_seq_len)
+            
+        collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
+            
     if use_ddp:
         train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
         val_sampler = DistributedSampler(val_dataset, num_replicas=world_size, rank=rank, shuffle=False)

@@ -116,7 +116,7 @@ transformer_using_pytorch/
 │   └── evaluation_metrics.py       # BLEU score and other metrics
 ├── train.py                        # Main training script
 └── README.md                       # This file
-
+```
 
 ## Implementation Highlights
 
@@ -180,7 +180,6 @@ def positional_encoding(self, seq_len, d_model):
 
 
 ## Future Improvements
-### Visualisations:
 - Encoder self-attention maps
 - Decoder self-attention maps
 - Cross-attention between encoder and decoder

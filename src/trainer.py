@@ -65,7 +65,7 @@ class Trainer:
                 src, tgt = batch['src'].to(self.device), batch['tgt'].to(self.device)
                 tgt_input, tgt_output = tgt[:, :-1], tgt[:, 1:]
 
-                with autocast('cuda', enabled=False, dtype=torch.float16):
+                with autocast('cuda', enabled=True, dtype=torch.float16):
                     output = self.model(src, tgt_input)
                     
                     # Create mask for non-padding tokens

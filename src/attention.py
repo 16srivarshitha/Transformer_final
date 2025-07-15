@@ -35,6 +35,16 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             # Use dtype-appropriate masking value
             mask_value = torch.finfo(scores.dtype).min
+            
+            # Handle different mask dimensions
+            if mask.dim() == 2:  # (batch_size, seq_len) - padding mask
+                # Expand to (batch_size, 1, 1, seq_len) for broadcasting
+                mask = mask.unsqueeze(1).unsqueeze(1)
+            elif mask.dim() == 3:  # (batch_size, seq_len, seq_len) - attention mask
+                # Expand to (batch_size, 1, seq_len, seq_len)
+                mask = mask.unsqueeze(1)
+            # If mask.dim() == 4, it's already the right shape
+            
             scores = scores.masked_fill(mask == True, mask_value)
         
         # Apply softmax to get attention weights
@@ -46,5 +56,4 @@ class MultiHeadAttention(nn.Module):
         
         # Concatenate heads and put through final linear layer
         output = output.transpose(1, 2).contiguous().view(batch_size, query.size(1), self.d_model)
-        
         return self.w_o(output)

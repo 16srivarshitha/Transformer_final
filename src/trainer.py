@@ -4,10 +4,12 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 import itertools
 import math
+import random
 from .evaluation_metrics import EvaluationMetrics 
 from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 import os
+import logging
 
 class Trainer:
     def __init__(self, model, tokenizer, config, device='cuda'):
@@ -17,7 +19,13 @@ class Trainer:
         self.device = device
         self.pad_token_id = self.tokenizer.pad_token_id
 
-        self.optimizer = AdamW(model.parameters(), lr=config.learning_rate, betas=(config.beta1, config.beta2), eps=config.eps, weight_decay=config.weight_decay)
+        self.optimizer = AdamW(
+            model.parameters(), 
+            lr=config.learning_rate, 
+            betas=(config.beta1, config.beta2), 
+            eps=config.eps, 
+            weight_decay=config.weight_decay
+        )
 
         def lr_lambda(current_step):
             step = current_step + 1
@@ -27,10 +35,22 @@ class Trainer:
             return (warmup_steps / step) ** 0.5
 
         self.scheduler = LambdaLR(self.optimizer, lr_lambda)
-        self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad_token_id, label_smoothing=self.config.label_smoothing)
+        self.criterion = nn.CrossEntropyLoss(
+            ignore_index=self.pad_token_id, 
+            label_smoothing=self.config.label_smoothing
+        )
         self.scaler = GradScaler()
         self.evaluator = EvaluationMetrics(tokenizer)
         self.global_step = 0
+        
+        # Early stopping parameters
+        self.best_perplexity = float('inf')
+        self.patience = getattr(config, 'patience', 5)
+        self.patience_counter = 0
+        
+        # Setup logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
 
     def train_epoch(self, train_loader):
         self.model.train()
@@ -38,151 +58,185 @@ class Trainer:
         accumulation_steps = self.config.accumulation_steps
         self.optimizer.zero_grad()
 
-        # Track loss progression
         loss_values = []
         
         for batch_idx, batch in enumerate(tqdm(train_loader, desc="Training Epoch")):
-            src, tgt = batch['src'].to(self.device), batch['tgt'].to(self.device)
-            tgt_input, tgt_output = tgt[:, :-1], tgt[:, 1:]
+            try:
+                src, tgt = batch['src'].to(self.device), batch['tgt'].to(self.device)
+                tgt_input, tgt_output = tgt[:, :-1], tgt[:, 1:]
 
-            with autocast('cuda', enabled=True, dtype=torch.float16):
-                output = self.model(src, tgt_input)
-                loss = self.criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
-                loss = loss / accumulation_steps
-            
-            # DEBUG: Enhanced logging for first batch and every 100 batches
-            if batch_idx == 0 or batch_idx % 100 == 0:
-                print(f"\n--- BATCH {batch_idx} DEBUG ---")
-                print(f"Loss: {loss.item() * accumulation_steps:.4f}")
+                with autocast('cuda', enabled=True, dtype=torch.float16):
+                    output = self.model(src, tgt_input)
+                    
+                    # Create mask for non-padding tokens
+                    mask = (tgt_output != self.pad_token_id)
+                    
+                    # Calculate loss only on non-padding tokens
+                    loss = self.criterion(
+                        output.reshape(-1, output.size(-1)), 
+                        tgt_output.reshape(-1)
+                    )
+                    loss = loss / accumulation_steps
                 
-                # Check model predictions vs targets
-                with torch.no_grad():
-                    pred_tokens = output[0].argmax(dim=-1)[:10]  # First 10 tokens of first sample
-                    target_tokens = tgt_output[0][:10]
-                    
-                    print(f"Predicted tokens: {pred_tokens.cpu().tolist()}")
-                    print(f"Target tokens:    {target_tokens.cpu().tolist()}")
-                    
-                    # Show actual text
-                    pred_text = self.tokenizer.decode(pred_tokens.cpu().tolist(), skip_special_tokens=True)
-                    target_text = self.tokenizer.decode(target_tokens.cpu().tolist(), skip_special_tokens=True)
-                    print(f"Predicted text: '{pred_text}'")
-                    print(f"Target text:    '{target_text}'")
-                    
-                    # Check if model is learning variety
-                    unique_pred_tokens = len(set(pred_tokens.cpu().tolist()))
-                    print(f"Unique predicted tokens in sample: {unique_pred_tokens}/10")
-                    
-                    # Check logits distribution
-                    logits_sample = output[0, 0, :]  # First token position
-                    top_5_probs, top_5_indices = torch.topk(torch.softmax(logits_sample, dim=-1), 5)
-                    print(f"Top 5 token probabilities: {top_5_probs.cpu().tolist()}")
-                    print(f"Top 5 token indices: {top_5_indices.cpu().tolist()}")
-                    
-                    # Check gradient norms
-                    total_norm = 0
-                    for name, param in self.model.named_parameters():
-                        if param.grad is not None:
-                            param_norm = param.grad.data.norm(2)
-                            total_norm += param_norm.item() ** 2
-                    total_norm = total_norm ** (1. / 2)
-                    print(f"Total gradient norm: {total_norm:.6f}")
-                    
-                print("--- END BATCH DEBUG ---\n")
+                # Enhanced debugging with less frequency to save memory
+                if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
+                    self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
 
-            self.scaler.scale(loss).backward()
-            
-            # Track loss for analysis
-            loss_values.append(loss.item() * accumulation_steps)
-            
-            if (batch_idx + 1) % accumulation_steps == 0:
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.scheduler.step()
-                self.optimizer.zero_grad()
-                self.global_step += 1
+                self.scaler.scale(loss).backward()
+                
+                # Track loss for analysis
+                loss_values.append(loss.item() * accumulation_steps)
+                
+                if (batch_idx + 1) % accumulation_steps == 0:
+                    # Gradient clipping
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    self.scheduler.step()
+                    self.optimizer.zero_grad()
+                    self.global_step += 1
 
-            total_loss += loss.item() * accumulation_steps
+                total_loss += loss.item() * accumulation_steps
+                
+                # Periodic memory cleanup
+                if batch_idx % 100 == 0:
+                    torch.cuda.empty_cache()
+                    
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    self.logger.warning(f"CUDA OOM at batch {batch_idx}, skipping batch")
+                    torch.cuda.empty_cache()
+                    continue
+                else:
+                    raise e
 
-        if (len(train_loader)) % accumulation_steps != 0:
+        # Handle remaining gradients
+        if len(train_loader) % accumulation_steps != 0:
+            self.scaler.unscale_(self.optimizer)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.optimizer.zero_grad()
         
-        # DEBUG: Loss progression analysis
+        # Loss progression analysis
         if len(loss_values) > 10:
-            first_10_avg = sum(loss_values[:10]) / 10
-            last_10_avg = sum(loss_values[-10:]) / 10
-            print(f"\nTRAINING EPOCH SUMMARY:")
-            print(f"  First 10 batches avg loss: {first_10_avg:.4f}")
-            print(f"  Last 10 batches avg loss: {last_10_avg:.4f}")
-            print(f"  Loss improvement: {((first_10_avg - last_10_avg) / first_10_avg * 100):.2f}%")
+            self._analyze_loss_progression(loss_values)
             
-        return total_loss / len(train_loader.dataset)
+        return total_loss / len(train_loader)  # Average loss per batch
+
+    def _debug_batch(self, batch_idx, loss, output, tgt_output, accumulation_steps):
+        """Enhanced debugging with better memory management"""
+        print(f"\n--- BATCH {batch_idx} DEBUG ---")
+        print(f"Loss: {loss.item() * accumulation_steps:.4f}")
+        
+        with torch.no_grad():
+            # Sample only first sequence to save memory
+            pred_tokens = output[0].argmax(dim=-1)[:10]
+            target_tokens = tgt_output[0][:10]
+            
+            print(f"Predicted tokens: {pred_tokens.cpu().tolist()}")
+            print(f"Target tokens:    {target_tokens.cpu().tolist()}")
+            
+            # Text comparison
+            pred_text = self.tokenizer.decode(pred_tokens.cpu().tolist(), skip_special_tokens=True)
+            target_text = self.tokenizer.decode(target_tokens.cpu().tolist(), skip_special_tokens=True)
+            print(f"Predicted: '{pred_text}'")
+            print(f"Target:    '{target_text}'")
+            
+            # Token diversity
+            unique_pred_tokens = len(set(pred_tokens.cpu().tolist()))
+            print(f"Unique predicted tokens: {unique_pred_tokens}/10")
+            
+            # Top predictions analysis
+            logits_sample = output[0, 0, :]
+            top_5_probs, top_5_indices = torch.topk(torch.softmax(logits_sample, dim=-1), 5)
+            top_5_tokens = [self.tokenizer.decode([idx.item()]) for idx in top_5_indices]
+            print(f"Top 5 predictions: {list(zip(top_5_tokens, top_5_probs.cpu().tolist()))}")
+            
+            # Gradient norms
+            total_norm = sum(p.grad.data.norm(2).item() ** 2 
+                           for p in self.model.parameters() if p.grad is not None)
+            total_norm = total_norm ** 0.5
+            print(f"Total gradient norm: {total_norm:.6f}")
+            
+        print("--- END BATCH DEBUG ---\n")
+
+    def _analyze_loss_progression(self, loss_values):
+        """Analyze loss progression throughout the epoch"""
+        first_10_avg = sum(loss_values[:10]) / 10
+        last_10_avg = sum(loss_values[-10:]) / 10
+        improvement = ((first_10_avg - last_10_avg) / first_10_avg * 100) if first_10_avg > 0 else 0
+        
+        print(f"\nTRAINING EPOCH SUMMARY:")
+        print(f"  First 10 batches avg loss: {first_10_avg:.4f}")
+        print(f"  Last 10 batches avg loss: {last_10_avg:.4f}")
+        print(f"  Loss improvement: {improvement:.2f}%")
+        
+        # Check for training instability
+        if improvement < -10:  # Loss increased significantly
+            self.logger.warning("Training may be unstable - loss increased significantly during epoch")
 
     def validate(self, val_loader):
         self.model.eval()
         print("\n--- Running Validation ---")
         
-        num_bleu_batches = 50
-        val_subset_for_bleu = itertools.islice(val_loader, num_bleu_batches)
+        # Random sampling for BLEU evaluation
+        num_bleu_batches = min(50, len(val_loader))
+        val_indices = random.sample(range(len(val_loader)), num_bleu_batches)
+        val_subset_for_bleu = [batch for i, batch in enumerate(val_loader) if i in val_indices]
 
-        perplexity = self.evaluator.calculate_perplexity(self.model, val_loader, self.device)
-        predictions, references = self.evaluator.generate_translations(self.model, val_subset_for_bleu, self.device)
-        
-        # DEBUG: Enhanced validation analysis
-        print(f"\nVALIDATION DEBUG:")
+        try:
+            perplexity = self.evaluator.calculate_perplexity(self.model, val_loader, self.device)
+            predictions, references = self.evaluator.generate_translations(
+                self.model, val_subset_for_bleu, self.device
+            )
+            
+            # Enhanced validation analysis
+            self._analyze_predictions(predictions, references)
+            bleu_score = self.evaluator.calculate_bleu(predictions, references)
+            
+            return perplexity, bleu_score
+            
+        except Exception as e:
+            self.logger.error(f"Validation error: {str(e)}")
+            return float('inf'), 0.0
+
+    def _analyze_predictions(self, predictions, references):
+        """Analyze prediction quality and patterns"""
+        print(f"\nVALIDATION ANALYSIS:")
         print(f"Total predictions: {len(predictions)}")
-        print(f"Total references: {len(references)}")
         
-        # Analyze prediction patterns
+        # Prediction pattern analysis
         empty_preds = sum(1 for p in predictions if len(p.strip()) == 0)
         period_preds = sum(1 for p in predictions if p.strip() == ".")
         single_word_preds = sum(1 for p in predictions if len(p.strip().split()) == 1)
         multi_word_preds = sum(1 for p in predictions if len(p.strip().split()) > 1)
         
-        print(f"Prediction Analysis:")
-        print(f"  Empty predictions: {empty_preds}/{len(predictions)} ({empty_preds/len(predictions)*100:.1f}%)")
-        print(f"  Period-only predictions: {period_preds}/{len(predictions)} ({period_preds/len(predictions)*100:.1f}%)")
-        print(f"  Single word predictions: {single_word_preds}/{len(predictions)} ({single_word_preds/len(predictions)*100:.1f}%)")
-        print(f"  Multi-word predictions: {multi_word_preds}/{len(predictions)} ({multi_word_preds/len(predictions)*100:.1f}%)")
+        total_preds = len(predictions)
+        print(f"Prediction Patterns:")
+        print(f"  Empty: {empty_preds}/{total_preds} ({empty_preds/total_preds*100:.1f}%)")
+        print(f"  Period-only: {period_preds}/{total_preds} ({period_preds/total_preds*100:.1f}%)")
+        print(f"  Single word: {single_word_preds}/{total_preds} ({single_word_preds/total_preds*100:.1f}%)")
+        print(f"  Multi-word: {multi_word_preds}/{total_preds} ({multi_word_preds/total_preds*100:.1f}%)")
         
-        # Check vocabulary diversity
-        all_pred_words = []
-        for pred in predictions:
-            all_pred_words.extend(pred.split())
-        
-        unique_words = len(set(all_pred_words))
-        total_words = len(all_pred_words)
-        
-        print(f"Vocabulary Diversity:")
-        print(f"  Total words generated: {total_words}")
-        print(f"  Unique words: {unique_words}")
-        print(f"  Vocabulary diversity ratio: {unique_words/max(total_words, 1):.3f}")
-        
-        # Show most common generated words
+        # Vocabulary diversity
+        all_pred_words = [word for pred in predictions for word in pred.split()]
         if all_pred_words:
-            from collections import Counter
-            word_counts = Counter(all_pred_words)
-            most_common = word_counts.most_common(10)
-            print(f"  Most common words: {most_common}")
+            unique_words = len(set(all_pred_words))
+            diversity_ratio = unique_words / len(all_pred_words)
+            print(f"Vocabulary: {unique_words} unique / {len(all_pred_words)} total (ratio: {diversity_ratio:.3f})")
         
-        # Sample predictions and references
+        # Sample outputs
         print(f"\nSample Predictions:")
-        for i in range(min(5, len(predictions))):
-            print(f"  Sample {i}:")
-            print(f"    Prediction: '{predictions[i]}'")
-            print(f"    Reference:  '{references[i]}'")
-            print(f"    Pred length: {len(predictions[i].split())}, Ref length: {len(references[i].split())}")
-        
-        bleu_score = self.evaluator.calculate_bleu(predictions, references)
-        
-        return perplexity, bleu_score
+        for i in range(min(3, len(predictions))):
+            print(f"  {i+1}. Pred: '{predictions[i][:50]}{'...' if len(predictions[i]) > 50 else ''}'")
+            print(f"     Ref:  '{references[i][:50]}{'...' if len(references[i]) > 50 else ''}'")
 
     def train(self, train_loader, val_loader):
         print("Starting training...")
-        best_perplexity = float('inf')
-
+        
         for epoch in range(self.config.num_epochs):
             print(f"\n{'='*60}")
             print(f"EPOCH {epoch+1}/{self.config.num_epochs}")
@@ -195,27 +249,60 @@ class Trainer:
             
             current_lr = self.optimizer.param_groups[0]['lr']
             
-            print(f"\n{'='*60}")
-            print(f"EPOCH {epoch+1} SUMMARY:")
-            print(f"  Train Loss: {train_loss:.4f}")
-            print(f"  Validation Perplexity: {perplexity:.4f}")
-            print(f"  BLEU Score: {bleu_score:.2f}") 
-            print(f"  Learning Rate: {current_lr:.7f}")
-            print(f"  Global Step: {self.global_step}")
+            # Comprehensive epoch summary
+            self._print_epoch_summary(epoch, train_loss, perplexity, bleu_score, current_lr)
             
-            # Progress indicators
-            if epoch > 0:
-                print(f"  Perplexity change: {(perplexity - best_perplexity):+.4f}")
-            
-            if perplexity < best_perplexity:
-                best_perplexity = perplexity
-                torch.save(self.model.state_dict(), 'best_model.pth')
-                print(f"  ✓ New best model saved! (Perplexity: {best_perplexity:.4f})")
+            # Model saving and early stopping
+            if self._should_save_model(perplexity):
+                self._save_best_model(perplexity)
+                self.patience_counter = 0
             else:
-                print(f"  - No improvement (Best: {best_perplexity:.4f})")
+                self.patience_counter += 1
+                
+            # Early stopping check
+            if self._should_early_stop():
+                print(f"Early stopping triggered after {self.patience} epochs without improvement")
+                break
             
-            print(f"{'='*60}")
-            
-            # Early stopping check (optional)
-            if epoch > 2 and bleu_score > 0.1:  # Some minimal threshold
-                print(f"Model showing signs of learning (BLEU > 0.1)!")
+            # Learning indicators
+            if epoch > 0 and bleu_score > 0.1:
+                print(f"✓ Model showing learning progress (BLEU > 0.1)")
+
+    def _print_epoch_summary(self, epoch, train_loss, perplexity, bleu_score, current_lr):
+        """Print comprehensive epoch summary"""
+        print(f"\n{'='*60}")
+        print(f"EPOCH {epoch+1} SUMMARY:")
+        print(f"  Train Loss: {train_loss:.4f}")
+        print(f"  Validation Perplexity: {perplexity:.4f}")
+        print(f"  BLEU Score: {bleu_score:.4f}")
+        print(f"  Learning Rate: {current_lr:.7f}")
+        print(f"  Global Step: {self.global_step}")
+        print(f"  Patience Counter: {self.patience_counter}/{self.patience}")
+        
+        if epoch > 0:
+            perplexity_change = perplexity - self.best_perplexity
+            print(f"  Perplexity change: {perplexity_change:+.4f}")
+        
+        print(f"{'='*60}")
+
+    def _should_save_model(self, perplexity):
+        """Check if current model should be saved"""
+        return perplexity < self.best_perplexity
+
+    def _save_best_model(self, perplexity):
+        """Save the best model checkpoint"""
+        self.best_perplexity = perplexity
+        checkpoint = {
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+            'perplexity': perplexity,
+            'global_step': self.global_step,
+            'config': self.config
+        }
+        torch.save(checkpoint, 'best_model.pth')
+        print(f"  ✓ New best model saved! (Perplexity: {self.best_perplexity:.4f})")
+
+    def _should_early_stop(self):
+        """Check if training should be stopped early"""
+        return self.patience_counter >= self.patience

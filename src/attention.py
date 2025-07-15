@@ -16,47 +16,28 @@ class MultiHeadAttention(nn.Module):
         self.w_k = nn.Linear(d_model, d_model, bias=False)
         self.w_v = nn.Linear(d_model, d_model, bias=False)
         self.w_o = nn.Linear(d_model, d_model, bias=False)
-        
+    
         self.dropout = nn.Dropout(dropout)
         self.scale = math.sqrt(self.d_k)
-    
+
     def forward(self, query, key, value, mask=None):
-        batch_size, seq_len, _ = query.size()
+        batch_size = query.size(0)
         
-        # Linear transformations
-        Q = self.w_q(query)  # [batch_size, seq_len, d_model]
-        K = self.w_k(key)    # [batch_size, seq_len, d_model]
-        V = self.w_v(value)  # [batch_size, seq_len, d_model]
+        Q = self.w_q(query).view(batch_size, query.size(1), self.n_heads, self.d_k).transpose(1, 2)
+        K = self.w_k(key).view(batch_size, key.size(1), self.n_heads, self.d_k).transpose(1, 2)
+        V = self.w_v(value).view(batch_size, value.size(1), self.n_heads, self.d_k).transpose(1, 2)
         
-        # Reshape for multi-head attention
-        Q = Q.view(batch_size, seq_len, self.n_heads, self.d_k).transpose(1, 2)  # [batch_size, n_heads, seq_len, d_k]
-        K = K.view(batch_size, seq_len, self.n_heads, self.d_k).transpose(1, 2)  # [batch_size, n_heads, seq_len, d_k]
-        V = V.view(batch_size, seq_len, self.n_heads, self.d_k).transpose(1, 2)  # [batch_size, n_heads, seq_len, d_k]
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale
         
-        # Compute attention scores
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale  # [batch_size, n_heads, seq_len, seq_len]
-        
-        # Apply mask if provided
         if mask is not None:
-            # Handle different mask shapes
-            if mask.dim() == 2:  # [batch_size, seq_len] - padding mask
-                # Expand to [batch_size, 1, 1, seq_len] for broadcasting
-                mask = mask.unsqueeze(1).unsqueeze(2)
-            elif mask.dim() == 3:  # [batch_size, seq_len, seq_len] - causal mask
-                # Expand to [batch_size, 1, seq_len, seq_len] for broadcasting
-                mask = mask.unsqueeze(1)
+
+            scores = scores.masked_fill(mask == True, -1e9) 
             
-            scores = scores.masked_fill(mask == True, -1e4)
-        
-        # Apply softmax and dropout
         attention_weights = F.softmax(scores, dim=-1)
         attention_weights = self.dropout(attention_weights)
         
-        # Apply attention to values
-        output = torch.matmul(attention_weights, V)  # [batch_size, n_heads, seq_len, d_k]
+        output = torch.matmul(attention_weights, V)
         
-        # Reshape back to original dimensions
-        output = output.transpose(1, 2).contiguous()  # [batch_size, seq_len, n_heads, d_k]
-        output = output.view(batch_size, seq_len, self.d_model)  # [batch_size, seq_len, d_model]
+        output = output.transpose(1, 2).contiguous().view(batch_size, query.size(1), self.d_model)
         
         return self.w_o(output)

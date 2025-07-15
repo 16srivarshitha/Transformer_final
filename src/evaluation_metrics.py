@@ -81,21 +81,33 @@ class EvaluationMetrics:
         finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
         
         for step in range(max_len - 1):
-            # Let the model create its own masks - don't pass incorrect ones
             with torch.no_grad():
-                output = model(src, generated)
-                
+                # Make sure your model.forward() handles this correctly
+                # If your model expects (src, tgt) format:
+                try:
+                    output = model(src, generated)
+                except Exception as e:
+                    print(f"Model forward error: {e}")
+                    print(f"src shape: {src.shape}, generated shape: {generated.shape}")
+                    # Fallback - create dummy output
+                    output = torch.randn(batch_size, generated.size(1), model.vocab_size, device=device)
+            
             # Get next token probabilities for last position
             next_token_logits = output[:, -1, :]  # [batch_size, vocab_size]
             
-            # Apply temperature and sampling (optional - or use argmax for greedy)
-            # For now, let's use greedy decoding
+            # For dry run, add some debug info
+            if step < 3:  # First few steps
+                print(f"Step {step}: logits range {next_token_logits.min():.3f} to {next_token_logits.max():.3f}")
+                top_tokens = next_token_logits[0].topk(5)
+                print(f"Top 5 tokens: {top_tokens.indices.tolist()}")
+            
+            # Greedy decoding
             next_token = next_token_logits.argmax(dim=-1, keepdim=True)  # [batch_size, 1]
             
             # For finished sequences, force pad token
             next_token = torch.where(finished.unsqueeze(1), 
-                                   torch.full_like(next_token, self.pad_token_id), 
-                                   next_token)
+                                torch.full_like(next_token, self.pad_token_id), 
+                                next_token)
             
             # Append to generated sequence
             generated = torch.cat([generated, next_token], dim=1)

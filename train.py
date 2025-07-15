@@ -270,7 +270,7 @@ def main():
         args.subset_size = 200
         args.num_epochs = 2
         args.batch_size = 256
-        args.save_every = 10
+        args.save_every = 100
     
     # Validate arguments
     validate_args(args, logger)

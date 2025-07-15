@@ -42,7 +42,7 @@ def main():
     if args.dry_run:
         print("!!! RUNNING IN DRY RUN MODE !!!")
         args.subset_size = 200 # Use a very small subset for the test
-        args.num_epochs = 5   # Only run one epoch
+        args.num_epochs = 10   # Only run one epoch
         args.batch_size = 32
     
     set_seed(args.seed)

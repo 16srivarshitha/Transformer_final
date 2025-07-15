@@ -46,8 +46,11 @@ class TranslationDataset(Dataset):
             src_token_ids = src_encoding.ids
             tgt_token_ids = tgt_encoding.ids
 
-        src_final_tokens = [self.tokenizer.bos_token_id] + src_token_ids + [self.tokenizer.eos_token_id]
-        tgt_final_tokens = [self.tokenizer.bos_token_id] + tgt_token_ids + [self.tokenizer.eos_token_id]
+        bos_id = self.tokenizer.bos_token_id if self.tokenizer.bos_token_id is not None else 1
+        eos_id = self.tokenizer.eos_token_id if self.tokenizer.eos_token_id is not None else 2
+
+        src_final_tokens = [bos_id] + src_token_ids + [eos_id]
+        tgt_final_tokens = [bos_id] + tgt_token_ids + [eos_id]
         
         return {
             'src': torch.tensor(src_final_tokens, dtype=torch.long),
@@ -88,11 +91,21 @@ def create_dataloaders(
         
     tokenizer = PreTrainedTokenizerFast(tokenizer_file=tokenizer_path)
     
-    # Ensure special tokens are properly set
+    # Ensure special tokens are properly set with fallbacks
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = 3  # Common pad token ID
+    if tokenizer.bos_token_id is None:
+        tokenizer.bos_token_id = 1  # Common BOS token ID
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token_id = 2  # Common EOS token ID
+    
+    # Set the token strings if they're missing
     if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token = tokenizer.convert_ids_to_tokens([tokenizer.pad_token_id])[0]
     if tokenizer.bos_token is None:
-        tokenizer.bos_token = tokenizer.eos_token
+        tokenizer.bos_token = tokenizer.convert_ids_to_tokens([tokenizer.bos_token_id])[0]
+    if tokenizer.eos_token is None:
+        tokenizer.eos_token = tokenizer.convert_ids_to_tokens([tokenizer.eos_token_id])[0]
     
     pad_id = tokenizer.pad_token_id    
 

@@ -28,35 +28,36 @@ class EnhancedTransformer(nn.Module):
         for name, p in self.named_parameters():
             if p.dim() > 1:
                 if 'output_projection' in name:
-                    # Special initialization for output layer
-                    nn.init.normal_(p, mean=0.0, std=0.02)
+                    nn.init.normal_(p, mean=0.0, std=0.1)  # Increased from 0.02
                 else:
                     nn.init.xavier_uniform_(p)
 
     def create_mask(self, src, tgt):
-        """Creates masks for attention mechanisms. True values are masked."""
-        # Source padding mask: True for padding tokens
-        # Shape: [batch_size, 1, 1, src_seq_len]
+        batch_size, src_len = src.size()
+        _, tgt_len = tgt.size()
+        
+        # Source padding mask: [batch_size, 1, 1, src_len]
         src_mask = (src == self.pad_token_id).unsqueeze(1).unsqueeze(2)
-
-        # Target padding mask: True for padding tokens
-        tgt_padding_mask = (tgt == self.pad_token_id).unsqueeze(1) # Shape: [batch_size, 1, tgt_seq_len]
         
-        # Causal (look-ahead) mask
-        seq_len = tgt.size(1)
-        # Shape: [1, tgt_seq_len, tgt_seq_len]
-        causal_mask = torch.triu(torch.ones(1, seq_len, seq_len, device=tgt.device), diagonal=1).bool()
+        # Target padding mask: [batch_size, 1, tgt_len]
+        tgt_padding_mask = (tgt == self.pad_token_id).unsqueeze(1)
         
-        # Combine target padding and causal masks
-        # The masks are broadcasted together.
-        # Shape: [batch_size, 1, tgt_seq_len, tgt_seq_len]
-        tgt_mask = tgt_padding_mask.unsqueeze(1) | causal_mask
-
+        # Causal mask: [tgt_len, tgt_len]
+        causal_mask = torch.triu(torch.ones(tgt_len, tgt_len, device=tgt.device), diagonal=1).bool()
+        
+        # Combine masks: [batch_size, 1, tgt_len, tgt_len]
+        tgt_mask = tgt_padding_mask.unsqueeze(2) | causal_mask.unsqueeze(0)
+        
         return src_mask, tgt_mask
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None):
         if src_mask is None or tgt_mask is None:
             src_mask, tgt_mask = self.create_mask(src, tgt)
+        
+        # DEBUG: Print mask shapes and values
+        print(f"DEBUG: src_mask shape: {src_mask.shape}, tgt_mask shape: {tgt_mask.shape}")
+        print(f"DEBUG: src_mask sample: {src_mask[0, 0, 0, :10]}")
+        print(f"DEBUG: tgt_mask sample: {tgt_mask[0, 0, :5, :5]}")
         
         src_emb = self.pos_encoding(self.src_embedding(src))
         encoder_output = self.encoder(src_emb, src_mask)
@@ -64,4 +65,11 @@ class EnhancedTransformer(nn.Module):
         tgt_emb = self.pos_encoding(self.tgt_embedding(tgt))
         decoder_output = self.decoder(tgt_emb, encoder_output, tgt_mask, src_mask)
         
-        return self.output_projection(decoder_output)
+        logits = self.output_projection(decoder_output)
+        
+        # DEBUG: Check output distribution
+        print(f"DEBUG: logits shape: {logits.shape}")
+        print(f"DEBUG: logits range: {logits.min():.3f} to {logits.max():.3f}")
+        print(f"DEBUG: logits std: {logits.std():.3f}")
+        
+        return logits

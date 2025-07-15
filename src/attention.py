@@ -45,7 +45,7 @@ class MultiHeadAttention(nn.Module):
                 mask = mask.unsqueeze(1)
             # If mask.dim() == 4, it's already the right shape
             
-            scores = scores.masked_fill(mask == True, mask_value)
+            scores = scores.masked_fill(mask, mask_value)
         
         # Apply softmax to get attention weights
         attention_weights = F.softmax(scores, dim=-1)

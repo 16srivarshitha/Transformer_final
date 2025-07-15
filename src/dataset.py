@@ -26,12 +26,10 @@ class TranslationDataset(Dataset):
             src_text = item[self.lang_keys[0]]
             tgt_text = item[self.lang_keys[1]]
 
-        # Encode the text but DO NOT add special tokens automatically yet.
-        # The .encode() method returns an Encoding object. We need the .ids attribute.
         src_encoding = self.tokenizer.encode(
             src_text, 
-            add_special_tokens=False, # We will add them manually
-            max_length=self.max_length - 2, # Account for BOS/EOS
+            add_special_tokens=False,
+            max_length=self.max_length - 2,
             truncation=True
         )
         tgt_encoding = self.tokenizer.encode(
@@ -41,11 +39,13 @@ class TranslationDataset(Dataset):
             truncation=True
         )
 
-        # Extract the list of integer IDs
-        src_token_ids = src_encoding.ids
-        tgt_token_ids = tgt_encoding.ids
+        if isinstance(src_encoding, list):
+            src_token_ids = src_encoding
+            tgt_token_ids = tgt_encoding
+        else:
+            src_token_ids = src_encoding.ids
+            tgt_token_ids = tgt_encoding.ids
 
-        # Manually add the special tokens
         src_final_tokens = [self.tokenizer.bos_token_id] + src_token_ids + [self.tokenizer.eos_token_id]
         tgt_final_tokens = [self.tokenizer.bos_token_id] + tgt_token_ids + [self.tokenizer.eos_token_id]
         
@@ -87,21 +87,26 @@ def create_dataloaders(
         print(f"Loading tokenizer from {tokenizer_path}...")
         
     tokenizer = PreTrainedTokenizerFast(tokenizer_file=tokenizer_path)
+    
+    # Ensure special tokens are properly set
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    if tokenizer.bos_token is None:
+        tokenizer.bos_token = tokenizer.eos_token
+    
     pad_id = tokenizer.pad_token_id    
 
     if rank == 0:
         print(f"Loading dataset '{dataset_name}' ({dataset_config})...")
-    
+        print(f"Special tokens - BOS: {tokenizer.bos_token_id}, EOS: {tokenizer.eos_token_id}, PAD: {tokenizer.pad_token_id}")
     
     try:
-
         train_split = 'train'
         val_split = 'validation'
         full_dataset = load_dataset(dataset_name, dataset_config)
         train_data = full_dataset[train_split]
         val_data = full_dataset[val_split]
     except (KeyError, ValueError):
-
         if rank == 0:
             print("No standard validation split found. Creating one manually.")
         dataset = load_dataset(dataset_name, dataset_config, split='train')

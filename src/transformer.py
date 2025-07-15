@@ -25,9 +25,13 @@ class EnhancedTransformer(nn.Module):
         self._init_weights()
         
     def _init_weights(self):
-        for p in self.parameters():
+        for name, p in self.named_parameters():
             if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
+                if 'output_projection' in name:
+                    # Special initialization for output layer
+                    nn.init.normal_(p, mean=0.0, std=0.02)
+                else:
+                    nn.init.xavier_uniform_(p)
 
     def create_mask(self, src, tgt):
         """Creates masks for attention mechanisms. True values are masked."""

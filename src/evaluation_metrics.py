@@ -74,28 +74,37 @@ class EvaluationMetrics:
         batch_size = src.size(0)
         max_len = self.max_length
         
-        # Create src_mask (assuming you have this in your model)
-        src_mask = (src != self.pad_token_id)
-        
         # Start with BOS token
         generated = torch.full((batch_size, 1), self.bos_token_id, device=device, dtype=torch.long)
         
-        for _ in range(max_len - 1):
-            # Create target mask for current sequence
-            tgt_mask = (generated != self.pad_token_id)
-            
-            # Get model output
+        # Track which sequences are finished
+        finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
+        
+        for step in range(max_len - 1):
+            # Let the model create its own masks - don't pass incorrect ones
             with torch.no_grad():
-                output = model(src, generated, src_mask=src_mask, tgt_mask=tgt_mask)
+                output = model(src, generated)
                 
-            # Get next token (greedy)
-            next_token = output[:, -1, :].argmax(dim=-1, keepdim=True)
+            # Get next token probabilities for last position
+            next_token_logits = output[:, -1, :]  # [batch_size, vocab_size]
+            
+            # Apply temperature and sampling (optional - or use argmax for greedy)
+            # For now, let's use greedy decoding
+            next_token = next_token_logits.argmax(dim=-1, keepdim=True)  # [batch_size, 1]
+            
+            # For finished sequences, force pad token
+            next_token = torch.where(finished.unsqueeze(1), 
+                                   torch.full_like(next_token, self.pad_token_id), 
+                                   next_token)
             
             # Append to generated sequence
             generated = torch.cat([generated, next_token], dim=1)
             
+            # Update finished sequences
+            finished = finished | (next_token.squeeze(1) == self.eos_token_id)
+            
             # Stop if all sequences have generated EOS
-            if (next_token == self.eos_token_id).all():
+            if finished.all():
                 break
         
         return generated

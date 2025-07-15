@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import math
@@ -19,7 +18,6 @@ class EvaluationMetrics:
         references = []
 
         with torch.no_grad():
-            # Use tqdm to show progress on the validation set
             for batch in tqdm(dataloader, desc="Generating Translations"):
                 src = batch['src'].to(device)
                 tgt = batch['tgt'].to(device)
@@ -40,7 +38,7 @@ class EvaluationMetrics:
 
                     # greedy decoding for stable validation 
                     next_token_logits = output[:, -1, :]
-                    next_token = torch.argmax(next_token_logits, dim=-1) #
+                    next_token = torch.argmax(next_token_logits, dim=-1)
 
                     decoder_input = torch.cat([decoder_input, next_token.unsqueeze(1)], dim=1)
                     finished_sentences |= (next_token == self.eos_token_id)
@@ -77,10 +75,11 @@ class EvaluationMetrics:
 
                 with torch.autocast(device_type='cuda', dtype=torch.float16):
                     output = model(src, tgt_input)
-                    loss = criterion(output.view(-1, output.size(-1)), tgt_output.view(-1))
+                    loss = criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
 
                 total_loss += loss.item()
                 total_tokens += (tgt_output != self.pad_token_id).sum().item()
 
-        if total_tokens == 0: return float('inf')
+        if total_tokens == 0: 
+            return float('inf')
         return math.exp(total_loss / total_tokens)

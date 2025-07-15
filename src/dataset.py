@@ -112,27 +112,25 @@ def create_dataloaders(
     if rank == 0:
         print(f"Loading dataset '{dataset_name}' ({dataset_config})...")
         print(f"Special tokens - BOS: {tokenizer.bos_token_id}, EOS: {tokenizer.eos_token_id}, PAD: {tokenizer.pad_token_id}")
-    
     try:
-        train_split = 'train'
-        val_split = 'validation'
-        full_dataset = load_dataset(dataset_name, dataset_config)
-        train_data = full_dataset[train_split]
-        val_data = full_dataset[val_split]
-    except (KeyError, ValueError):
-        if rank == 0:
-            print("No standard validation split found. Creating one manually.")
-        train_data = load_dataset(dataset_name, dataset_config, split='train')
-        val_data = load_dataset(dataset_name, dataset_config, split='validation')
+        print(f"Loading '{dataset_name}' dataset...")
+        train_data = load_dataset(dataset_name, name=None, split='train')
+        val_data = load_dataset(dataset_name, name=None, split='validation')
 
         if subset_size is not None and subset_size < len(train_data):
+            print(f"Using a subset of {subset_size} training samples.")
             train_data = train_data.shuffle(seed=seed).select(range(subset_size))
 
+        if rank == 0:
+            print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
 
         train_dataset = TranslationDataset(train_data, tokenizer, model_config.max_seq_len)
         val_dataset = TranslationDataset(val_data, tokenizer, model_config.max_seq_len)
             
         collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
+
+    except Exception as e:
+        print(f"FATAL: Failed to load or process dataset. Error: {e}")
             
     if use_ddp:
         train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)

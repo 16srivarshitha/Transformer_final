@@ -65,7 +65,7 @@ class Trainer:
                 src, tgt = batch['src'].to(self.device), batch['tgt'].to(self.device)
                 tgt_input, tgt_output = tgt[:, :-1], tgt[:, 1:]
 
-                with autocast('cuda', enabled=True, dtype=torch.float16):
+                with autocast('cuda', enabled=False, dtype=torch.float16):
                     output = self.model(src, tgt_input)
                     
                     # Create mask for non-padding tokens
@@ -76,12 +76,11 @@ class Trainer:
                         output.reshape(-1, output.size(-1)), 
                         tgt_output.reshape(-1)
                     )
-                    loss = loss / accumulation_steps
                 
                 # Enhanced debugging with less frequency to save memory
                 if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
                     self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
-
+                print(f"Loss value: {loss.item()}")
                 self.scaler.scale(loss).backward()
                 
                 # Track loss for analysis

@@ -50,8 +50,9 @@ class EnhancedTransformer(nn.Module):
 
         return src_mask, tgt_mask
 
-    def forward(self, src, tgt):
-        src_mask, tgt_mask = self.create_mask(src, tgt)
+    def forward(self, src, tgt, src_mask=None, tgt_mask=None):
+        if src_mask is None or tgt_mask is None:
+            src_mask, tgt_mask = self.create_mask(src, tgt)
         
         src_emb = self.pos_encoding(self.src_embedding(src))
         encoder_output = self.encoder(src_emb, src_mask)

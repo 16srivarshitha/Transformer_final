@@ -76,21 +76,25 @@ class Trainer:
                         output.reshape(-1, output.size(-1)), 
                         tgt_output.reshape(-1)
                     )
-                
-                # Enhanced debugging with less frequency to save memory
-                if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
-                    self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
-                print(f"Loss value: {loss.item()}")
-                self.scaler.scale(loss).backward()
-                
-                # Track loss for analysis
-                loss_values.append(loss.item() * accumulation_steps)
-                
+
+                    # 1. Scale the loss and compute gradients
+                    self.scaler.scale(loss).backward()
+                    
+                    # Track loss for analysis
+                    loss_values.append(loss.item() * accumulation_steps)
+                    
+
                 if (batch_idx + 1) % accumulation_steps == 0:
-                    # Gradient clipping
+                # 2. Unscale gradients before clipping and stepping
                     self.scaler.unscale_(self.optimizer)
+                    
+                    if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
+                        self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
+
+                    # 4. Clip gradients
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     
+                    # 5. Step the optimizer and scheduler
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                     self.scheduler.step()
@@ -300,7 +304,7 @@ class Trainer:
             'config': self.config
         }
         torch.save(checkpoint, 'best_model.pth')
-        print(f"  ✓ New best model saved! (Perplexity: {self.best_perplexity:.4f})")
+        print(f" New best model saved! (Perplexity: {self.best_perplexity:.4f})")
 
     def _should_early_stop(self):
         """Check if training should be stopped early"""

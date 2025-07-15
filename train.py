@@ -269,8 +269,8 @@ def main():
         logger.info("!!! RUNNING IN DRY RUN MODE !!!")
         args.subset_size = 200
         args.num_epochs = 2
-        args.batch_size = 8
-        args.save_every = 1
+        args.batch_size = 256
+        args.save_every = 10
     
     # Validate arguments
     validate_args(args, logger)

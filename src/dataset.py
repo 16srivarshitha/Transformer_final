@@ -124,8 +124,13 @@ def create_dataloaders(
         if rank == 0:
             print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
 
-        train_dataset = TranslationDataset(train_data, tokenizer, model_config.max_seq_len)
-        val_dataset = TranslationDataset(val_data, tokenizer, model_config.max_seq_len)
+        print("Converting datasets to lists to ensure stability...")
+        train_data_list = list(train_data)
+        val_data_list = list(val_data)
+        print("Conversion complete.")
+
+        train_dataset = TranslationDataset(train_data_list, tokenizer, model_config.max_seq_len)
+        val_dataset = TranslationDataset(val_data_list, tokenizer, model_config.max_seq_len)
             
         collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
 

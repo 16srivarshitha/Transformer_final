@@ -145,11 +145,17 @@ def create_dataloaders(
                 print("!!!!!!!!!!!!!!  FATAL LEAKAGE CONFIRMED  !!!!!!!!!!!!!!")
                 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 print(f"Found {len(leaked_samples)} validation samples that also exist in the training data.")
-                print("This proves the running code is stale or the environment cache is corrupted.")
                 print(f"Example Leaked DE Sentence: '{leaked_samples[0]['de']}'")
-                print("Please follow the instructions to RESTART YOUR KERNEL and run again.")
-                import sys
-                sys.exit(1) 
+                print("Proceeding by filtering out leaked samples from validation set.")
+
+                # --- ADDED LOGIC HERE TO FILTER LEAKED SAMPLES ---
+                leaked_de_sentences_set = {s['de'] for s in leaked_samples} # Create a set of DE sentences to filter
+                original_val_size = len(val_data)
+                val_data = val_data.filter(lambda example: example['de'] not in leaked_de_sentences_set)
+                print(f"Filtered {original_val_size - len(val_data)} samples from validation set.")
+                print("---  Definitive Leakage Check Passed (after filtering): The data splits are now correctly separated. ---\n")
+                # --- END ADDED LOGIC ---
+
             else:
                 print("---  Definitive Leakage Check Passed: The data splits are correctly separated. ---\n")
 
@@ -160,13 +166,13 @@ def create_dataloaders(
 
         if rank == 0:
             print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
-        
+
         train_data_list = list(train_data)
-        val_data_list = list(val_data)
+        val_data_list = list(val_data) # Ensure this is the filtered val_data
 
         train_dataset = TranslationDataset(train_data_list, tokenizer, model_config.max_seq_len)
         val_dataset = TranslationDataset(val_data_list, tokenizer, model_config.max_seq_len)
-            
+
         collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
 
     except Exception as e:

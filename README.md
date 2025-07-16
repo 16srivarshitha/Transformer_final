@@ -96,7 +96,7 @@ Evaluate model performance on test set:
 python evaluate.py --model_path checkpoints/best_model.pth --test_data data/test.txt
 ```
 
-## Project Structure
+## File Structure
 
 ```
 transformer_using_pytorch/

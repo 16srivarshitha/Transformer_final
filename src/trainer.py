@@ -353,7 +353,7 @@ class Trainer:
         ax3.legend()
         ax3.grid(True)
         
-        plt.tight_layout()
-        plt.savefig(save_path)
+        fig.tight_layout()
+        fig.savefig(save_path)
         print(f"Training plots saved to {save_path}")
         plt.show()

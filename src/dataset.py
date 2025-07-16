@@ -109,24 +109,41 @@ def create_dataloaders(
     
     pad_id = tokenizer.pad_token_id    
 
-    if rank == 0:
-        print(f"Loading dataset '{dataset_name}' ({dataset_config})...")
-        print(f"Special tokens - BOS: {tokenizer.bos_token_id}, EOS: {tokenizer.eos_token_id}, PAD: {tokenizer.pad_token_id}")
     try:
-        print(f"Loading '{dataset_name}' dataset...")
+        if rank == 0:
+            print(f"Loading '{dataset_name}' dataset...")
         train_data = load_dataset(dataset_name, name=None, split='train')
         val_data = load_dataset(dataset_name, name=None, split='validation')
 
+        if rank == 0:
+            print("\n--- PERFORMING DEFINITIVE LEAKAGE CHECK ---")
+            train_de_sentences = {sample['de'] for sample in train_data}
+
+            leaked_samples = [s for s in val_data if s['de'] in train_de_sentences]
+
+            if len(leaked_samples) > 0:
+                print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print("!!!!!!!!!!!!!!  FATAL LEAKAGE CONFIRMED  !!!!!!!!!!!!!!")
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                print(f"Found {len(leaked_samples)} validation samples that also exist in the training data.")
+                print("This proves the running code is stale or the environment cache is corrupted.")
+                print(f"Example Leaked DE Sentence: '{leaked_samples[0]['de']}'")
+                print("Please follow the instructions to RESTART YOUR KERNEL and run again.")
+                import sys
+                sys.exit(1) 
+            else:
+                print("---  Definitive Leakage Check Passed: The data splits are correctly separated. ---\n")
+
         if subset_size is not None and subset_size < len(train_data):
-            print(f"Using a subset of {subset_size} training samples.")
+            if rank == 0:
+                print(f"Using a subset of {subset_size} training samples.")
             train_data = train_data.shuffle(seed=seed + 1).select(range(subset_size))
+
         if rank == 0:
             print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
-
-        print("Converting datasets to lists to ensure stability...")
+        
         train_data_list = list(train_data)
         val_data_list = list(val_data)
-        print("Conversion complete.")
 
         train_dataset = TranslationDataset(train_data_list, tokenizer, model_config.max_seq_len)
         val_dataset = TranslationDataset(val_data_list, tokenizer, model_config.max_seq_len)
@@ -134,7 +151,10 @@ def create_dataloaders(
         collate_with_pad = partial(collate_fn, pad_token_id=pad_id)
 
     except Exception as e:
-        print(f"FATAL: Failed to load or process dataset. Error: {e}")
+        if rank == 0:
+            print(f"FATAL: An error occurred during data loading or processing. Error: {e}")
+        import sys
+        sys.exit(1)
             
     if use_ddp:
         train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)

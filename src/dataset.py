@@ -6,6 +6,7 @@ from datasets import load_dataset
 from transformers import PreTrainedTokenizerFast
 from torch.nn.utils.rnn import pad_sequence
 from functools import partial
+from datasets import load_dataset
 
 class TranslationDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=512, lang_keys=('en', 'de')):
@@ -69,11 +70,11 @@ def collate_fn(batch, pad_token_id):
     return {'src': src_batch, 'tgt': tgt_batch}
 
 def create_dataloaders(
-    model_config, 
+    model_config,
     training_config,
-    tokenizer_path, 
-    use_ddp=False, 
-    rank=0, 
+    tokenizer_path,
+    use_ddp=False,
+    rank=0,
     world_size=1,
     dataset_name='bentrevett/multi30k',
     dataset_config=None,
@@ -81,6 +82,24 @@ def create_dataloaders(
     val_split_fraction=0.1,
     seed=42
 ):
+    if rank == 0: # Only rank 0 should clear cache to avoid race conditions in DDP
+        print("Checking Hugging Face cache directory...")
+        hf_cache_home = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+        datasets_cache_path = os.path.join(hf_cache_home, "datasets")
+        multi30k_cache_path = os.path.join(datasets_cache_path, "bentrevett___multi30k")
+
+        if os.path.exists(multi30k_cache_path):
+            print(f"Found existing Multi30k cache at: {multi30k_cache_path}")
+            print("Deleting Multi30k cache to force fresh download...")
+            import shutil
+            try:
+                shutil.rmtree(multi30k_cache_path)
+                print("Multi30k cache deleted successfully.")
+            except Exception as e:
+                print(f"Error deleting cache: {e}")
+                print("You might need to manually inspect/delete if permissions are an issue.")
+        else:
+            print("Multi30k cache not found or already cleared.")
     
     tokenizer_path = os.path.join(os.path.dirname(__file__), '..', 'en-de-tokenizer.json')
     if not os.path.exists(tokenizer_path):

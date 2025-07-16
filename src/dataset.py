@@ -119,8 +119,7 @@ def create_dataloaders(
 
         if subset_size is not None and subset_size < len(train_data):
             print(f"Using a subset of {subset_size} training samples.")
-            train_data = train_data.shuffle(seed=seed).select(range(subset_size))
-
+            train_data = train_data.shuffle(seed=seed + 1).select(range(subset_size))
         if rank == 0:
             print(f"Using {len(train_data):,} samples for training and {len(val_data):,} for validation.")
 

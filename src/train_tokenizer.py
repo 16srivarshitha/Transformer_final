@@ -89,6 +89,12 @@ def train_new_tokenizer(
         
     # Save the tokenizer
     tokenizer.save(output_file)
+    print(f"\n--- ACTUAL TOKENIZER SPECIAL TOKEN IDs ---")
+    print(f"  <unk> ID: {tokenizer.token_to_id('<unk>')}")
+    print(f"  <s> ID: {tokenizer.token_to_id('<s>')}")
+    print(f"  </s> ID: {tokenizer.token_to_id('</s>')}")
+    print(f"  <pad> ID: {tokenizer.token_to_id('<pad>')}")
+    print(f"------------------------------------------")
     print(f"Tokenizer successfully trained and saved to {output_file}")
     
     # Test the tokenizer

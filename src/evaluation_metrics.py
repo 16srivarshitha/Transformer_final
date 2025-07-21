@@ -5,7 +5,7 @@ from transformers import PreTrainedTokenizerFast
 from sacrebleu import corpus_bleu
 import math
 from tqdm import tqdm
-
+import sys
 class EvaluationMetrics:
     def __init__(self, tokenizer, max_length=150):
         self.tokenizer = tokenizer
@@ -23,42 +23,57 @@ class EvaluationMetrics:
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(data_loader, desc="Generating Translations")):
-                src = batch['src'].to(device)
-                tgt = batch['tgt'].to(device)
+                try: # <--- Start of try block for batch processing
+                    src = batch['src'].to(device)
+                    tgt = batch['tgt'].to(device) # Note: tgt is loaded but primarily used for reference, not model input for generation
+
+                    generated = self.greedy_decode(model, src, device)
+                    
+                    # Convert to text
+                    for i in range(src.size(0)):
+                        # Get reference (remove BOS token, stop at EOS)
+                        ref_tokens = tgt[i].cpu().tolist()
+                        if ref_tokens[0] == self.bos_token_id:
+                            ref_tokens = ref_tokens[1:]  # Remove BOS
+                        if self.eos_token_id in ref_tokens:
+                            ref_tokens = ref_tokens[:ref_tokens.index(self.eos_token_id)]
+                        
+                        # Get prediction (stop at EOS, remove padding)
+                        pred_tokens = generated[i].cpu().tolist()
+                        if self.eos_token_id in pred_tokens:
+                            pred_tokens = pred_tokens[:pred_tokens.index(self.eos_token_id)]
+                        
+                        # Decode to text
+                        pred_text = self.tokenizer.decode(pred_tokens, skip_special_tokens=True)
+                        ref_text = self.tokenizer.decode(ref_tokens, skip_special_tokens=True)
+
+                        predictions.append(pred_text)
+                        references.append(ref_text)
+                        
+                        # Debug output for first few samples
+                        if debug and batch_idx == 0 and i < 3:
+                            print(f"\nDEBUG Sample {i}:")
+                            print(f"  Source tokens: {src[i].cpu().tolist()[:20]}...")
+                            print(f"  Source text: {self.tokenizer.decode(src[i].cpu().tolist(), skip_special_tokens=True)[:100]}...")
+                            print(f"  Pred tokens: {pred_tokens[:20]}...")
+                            print(f"  Pred text: '{pred_text}'")
+                            print(f"  Ref tokens: {ref_tokens[:20]}...")
+                            print(f"  Ref text: '{ref_text}'")
+                            pass
+                except RuntimeError as e:
+                    if "out of memory" in str(e):
+                        print(f"\n[WARNING] CUDA OOM during Translation generation for a batch. Skipping this batch. Try reducing batch_size or max_length.", file=sys.stderr)
+                        torch.cuda.empty_cache() 
+                        continue 
+                    else:
+                        raise e 
+                except Exception as e:
+                    print(f"\n[ERROR] General error during Translation generation for a batch: {e}", file=sys.stderr)
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
+                    continue
+
                 
-                # Generate translations using greedy decoding
-                generated = self.greedy_decode(model, src, device)
-                
-                # Convert to text
-                for i in range(src.size(0)):
-                    # Get reference (remove BOS token, stop at EOS)
-                    ref_tokens = tgt[i].cpu().tolist()
-                    if ref_tokens[0] == self.bos_token_id:
-                        ref_tokens = ref_tokens[1:]  # Remove BOS
-                    if self.eos_token_id in ref_tokens:
-                        ref_tokens = ref_tokens[:ref_tokens.index(self.eos_token_id)]
-                    
-                    # Get prediction (stop at EOS, remove padding)
-                    pred_tokens = generated[i].cpu().tolist()
-                    if self.eos_token_id in pred_tokens:
-                        pred_tokens = pred_tokens[:pred_tokens.index(self.eos_token_id)]
-                    
-                    # Decode to text
-                    pred_text = self.tokenizer.decode(pred_tokens, skip_special_tokens=True)
-                    ref_text = self.tokenizer.decode(ref_tokens, skip_special_tokens=True)
-                    
-                    predictions.append(pred_text)
-                    references.append(ref_text)
-                    
-                    # Debug output for first few samples
-                    if debug and batch_idx == 0 and i < 3:
-                        print(f"\nDEBUG Sample {i}:")
-                        print(f"  Source tokens: {src[i].cpu().tolist()[:20]}...")
-                        print(f"  Source text: {self.tokenizer.decode(src[i].cpu().tolist(), skip_special_tokens=True)[:100]}...")
-                        print(f"  Pred tokens: {pred_tokens[:20]}...")
-                        print(f"  Pred text: '{pred_text}'")
-                        print(f"  Ref tokens: {ref_tokens[:20]}...")
-                        print(f"  Ref text: '{ref_text}'")
                 
                 # Only process a subset for speed
                 if batch_idx >= 49:  # Process 50 batches
@@ -82,8 +97,6 @@ class EvaluationMetrics:
         
         for step in range(max_len - 1):
             with torch.no_grad():
-                # Make sure your model.forward() handles this correctly
-                # If your model expects (src, tgt) format:
                 try:
                     output = model(src, generated)
                 except Exception as e:
@@ -140,27 +153,40 @@ class EvaluationMetrics:
         total_loss = 0
         total_tokens = 0
         criterion = nn.CrossEntropyLoss(ignore_index=self.pad_token_id, reduction='sum')
-        
+
         with torch.no_grad():
             for batch in tqdm(data_loader, desc="Calculating Perplexity"):
-                src = batch['src'].to(device)
-                tgt = batch['tgt'].to(device)
-                
-                tgt_input = tgt[:, :-1]  # Remove last token
-                tgt_output = tgt[:, 1:]  # Remove first token (BOS)
-                
-                output = model(src, tgt_input)
-                loss = criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
-                
-                # Count non-padding tokens
-                non_pad_tokens = (tgt_output != self.pad_token_id).sum().item()
-                
-                total_loss += loss.item()
-                total_tokens += non_pad_tokens
-        
+                try: # <--- Start of try block for batch processing
+                    src = batch['src'].to(device)
+                    tgt = batch['tgt'].to(device)
+
+                    tgt_input = tgt[:, :-1]
+                    tgt_output = tgt[:, 1:]
+
+                    output = model(src, tgt_input)
+                    loss = criterion(output.reshape(-1, output.size(-1)), tgt_output.reshape(-1))
+
+                    non_pad_tokens = (tgt_output != self.pad_token_id).sum().item()
+
+                    total_loss += loss.item()
+                    total_tokens += non_pad_tokens
+
+                except RuntimeError as e:
+                    if "out of memory" in str(e):
+                        print(f"\n[WARNING] CUDA OOM during Perplexity calculation for a batch. Skipping this batch. Try reducing batch_size or max_length.", file=sys.stderr)
+                        torch.cuda.empty_cache() 
+                        continue 
+                    else:
+                        raise e 
+                except Exception as e:
+                    print(f"\n[ERROR] General error during Perplexity calculation for a batch: {e}", file=sys.stderr)
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
+                    continue 
+
         if total_tokens == 0:
             return float('inf')
-        
+
         avg_loss = total_loss / total_tokens
         perplexity = math.exp(avg_loss)
         return perplexity

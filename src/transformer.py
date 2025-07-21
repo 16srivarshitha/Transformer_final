@@ -24,13 +24,11 @@ class EnhancedTransformer(nn.Module):
             
         self._init_weights()
         
+
     def _init_weights(self):
         for name, p in self.named_parameters():
             if p.dim() > 1:
-                if 'output_projection' in name:
-                    nn.init.normal_(p, mean=0.0, std=0.1)  # Increased from 0.02
-                else:
-                    nn.init.xavier_uniform_(p)
+                nn.init.xavier_uniform_(p)
 
     def create_mask(self, src, tgt):
         batch_size, src_len = src.size()

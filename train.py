@@ -235,13 +235,13 @@ def setup_optimization(model, args, device, logger):
             sys.exit(1)
     
     # Compile model if requested and available
-    if not args.no_compile and torch.cuda.is_available():
-        logger.info("Compiling model for faster execution...")
-        try:
-            model = torch.compile(model)
-            logger.info("Model compilation successful")
-        except Exception as e:
-            logger.warning(f"Model compilation failed: {e}. Running uncompiled.")
+    # if not args.no_compile and torch.cuda.is_available():
+    #     logger.info("Compiling model for faster execution...")
+    #     try:
+    #         model = torch.compile(model)
+    #         logger.info("Model compilation successful")
+    #     except Exception as e:
+    #         logger.warning(f"Model compilation failed: {e}. Running uncompiled.")
     
     return model, start_epoch
 

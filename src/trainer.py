@@ -259,6 +259,9 @@ class Trainer:
                 self.history['train_loss'].append(train_loss)
                 self.history['perplexity'].append(perplexity)
                 self.history['bleu_score'].append(bleu_score)
+                print(f"DEBUG: Perplexity from validate: {perplexity}") 
+                print(f"DEBUG: BLEU Score from validate: {bleu_score}") 
+
                 
             current_lr = self.optimizer.param_groups[0]['lr']
 

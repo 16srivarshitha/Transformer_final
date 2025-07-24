@@ -16,8 +16,8 @@ class DecoderLayer(nn.Module):
             nn.Linear(d_ff, d_model)
         )
         
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.norm1 = nn.LayerNorm(d_model, eps=1e-6) # or 1e-12, common values
+        self.norm2 = nn.LayerNorm(d_model, eps=1e-6)
         self.norm3 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
         

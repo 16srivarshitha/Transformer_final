@@ -6,8 +6,8 @@ class EncoderLayer(nn.Module):
         super().__init__()
         self.self_attention = MultiHeadAttention(d_model, n_heads, dropout=dropout)
         self.feed_forward = nn.Sequential(nn.Linear(d_model, d_ff), nn.GELU(), nn.Dropout(dropout), nn.Linear(d_ff, d_model))
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.norm1 = nn.LayerNorm(d_model, eps=1e-6) 
+        self.norm2 = nn.LayerNorm(d_model, eps=1e-6)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):

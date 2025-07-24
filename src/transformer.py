@@ -40,14 +40,15 @@ class EnhancedTransformer(nn.Module):
         # Source padding mask: [batch_size, 1, 1, src_len]
         src_mask = (src == self.pad_token_id).unsqueeze(1).unsqueeze(2)
         
-        # Target padding mask: [batch_size, 1, tgt_len]
-        tgt_padding_mask = (tgt == self.pad_token_id).unsqueeze(1)
+        # Target padding mask: [batch_size, 1, 1, tgt_len]
+        tgt_padding_mask = (tgt == self.pad_token_id).unsqueeze(1).unsqueeze(1)
         
-        # Causal mask: [tgt_len, tgt_len]
+        # Causal mask: [1, 1, tgt_len, tgt_len]
         causal_mask = torch.triu(torch.ones(tgt_len, tgt_len, device=tgt.device), diagonal=1).bool()
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
         
         # Combine masks: [batch_size, 1, tgt_len, tgt_len]
-        tgt_mask = tgt_padding_mask.unsqueeze(2) | causal_mask.unsqueeze(0)
+        tgt_mask = tgt_padding_mask | causal_mask
         
         return src_mask, tgt_mask
 

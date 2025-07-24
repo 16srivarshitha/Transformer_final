@@ -11,13 +11,15 @@ class EncoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
-        # Self-attention + residual
-        attn_output = self.self_attention(x, x, x, mask)
-        x = self.norm1(x + self.dropout(attn_output))
+        # Pre-LN Self-attention + residual
+        norm_x = self.norm1(x) 
+        attn_output = self.self_attention(norm_x, norm_x, norm_x, mask)
+        x = x + self.dropout(attn_output)
 
-        # Feed-forward + residual
-        ff_output = self.feed_forward(x)
-        x = self.norm2(x + self.dropout(ff_output))
+        # Pre-LN Feed-forward + residual
+        norm_x = self.norm2(x) 
+        ff_output = self.feed_forward(norm_x)
+        x = x + self.dropout(ff_output)
         return x
 
 class Encoder(nn.Module):

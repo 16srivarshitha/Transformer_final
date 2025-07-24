@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import sys
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, n_heads, dropout=0.1):
@@ -30,6 +31,12 @@ class MultiHeadAttention(nn.Module):
         
         # Compute attention scores
         scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale
+
+        if torch.isnan(scores).any() or torch.isinf(scores).any():
+            print(f"\n[ERROR] NaN/Inf detected in attention scores BEFORE softmax!", file=sys.stderr)
+            print(f"  Scores min: {scores.min().item():.4f}, max: {scores.max().item():.4f}", file=sys.stderr)
+            print(f"  Scores mean: {scores.mean().item():.4f}, std: {scores.std().item():.4f}", file=sys.stderr)
+            raise ValueError("NaN/Inf detected in attention scores before softmax. Stopping training.")
         
         # Apply mask if provided
         if mask is not None:

@@ -53,9 +53,9 @@ class EnhancedTransformer(nn.Module):
             src_mask, tgt_mask = self.create_mask(src, tgt)
         
         # DEBUG: Print mask shapes and values
-        print(f"DEBUG: src_mask shape: {src_mask.shape}, tgt_mask shape: {tgt_mask.shape}")
-        print(f"DEBUG: src_mask sample: {src_mask[0, 0, 0, :10]}")
-        print(f"DEBUG: tgt_mask sample: {tgt_mask[0, 0, :5, :5]}")
+        # print(f"DEBUG: src_mask shape: {src_mask.shape}, tgt_mask shape: {tgt_mask.shape}")
+        # print(f"DEBUG: src_mask sample: {src_mask[0, 0, 0, :10]}")
+        # print(f"DEBUG: tgt_mask sample: {tgt_mask[0, 0, :5, :5]}")
         
         src_emb = self.pos_encoding(self.src_embedding(src))
         encoder_output = self.encoder(src_emb, src_mask)
@@ -66,8 +66,8 @@ class EnhancedTransformer(nn.Module):
         logits = self.output_projection(decoder_output)
         
         # DEBUG: Check output distribution
-        print(f"DEBUG: logits shape: {logits.shape}")
-        print(f"DEBUG: logits range: {logits.min():.3f} to {logits.max():.3f}")
-        print(f"DEBUG: logits std: {logits.std():.3f}")
+        # print(f"DEBUG: logits shape: {logits.shape}")
+        # print(f"DEBUG: logits range: {logits.min():.3f} to {logits.max():.3f}")
+        # print(f"DEBUG: logits std: {logits.std():.3f}")
         
         return logits

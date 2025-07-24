@@ -156,7 +156,7 @@ class EvaluationMetrics:
 
         with torch.no_grad():
             for batch in tqdm(data_loader, desc="Calculating Perplexity"):
-                try: # <--- Start of try block for batch processing
+                try: 
                     src = batch['src'].to(device)
                     tgt = batch['tgt'].to(device)
 
@@ -188,5 +188,11 @@ class EvaluationMetrics:
             return float('inf')
 
         avg_loss = total_loss / total_tokens
+
+
+        if math.isinf(avg_loss) or math.isnan(avg_loss):
+            print(f"[ERROR] avg_loss is {avg_loss} in perplexity calculation. This indicates NaNs/Infs during forward pass. Returning inf.", file=sys.stderr)
+            return float('inf') 
+
         perplexity = math.exp(avg_loss)
         return perplexity

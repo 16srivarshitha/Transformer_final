@@ -94,12 +94,13 @@ class Trainer:
                 if (batch_idx + 1) % accumulation_steps == 0:
                 # 2. Unscale gradients before clipping and stepping
                     self.scaler.unscale_(self.optimizer)
+
                     
                     if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
                         self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
 
                     # 4. Clip gradients
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
                     
                     # 5. Step the optimizer and scheduler
                     self.scaler.step(self.optimizer)

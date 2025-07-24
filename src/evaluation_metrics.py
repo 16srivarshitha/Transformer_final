@@ -82,6 +82,9 @@ class EvaluationMetrics:
         if debug:
             print(f"\nSample Prediction: {predictions[0]}")
             print(f"Sample Reference:  {references[0]}")
+            print(f"Sample prediction tokens: {pred_tokens}")
+            print(f"Sample reference tokens: {ref_tokens}")
+            print(f"Are they identical?: {pred_tokens == ref_tokens}")
         
         return predictions, references
     
@@ -133,6 +136,8 @@ class EvaluationMetrics:
                 break
         
         return generated
+    
+
     
     def calculate_bleu(self, predictions, references):
         # Make sure we have strings, not lists

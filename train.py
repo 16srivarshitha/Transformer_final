@@ -281,6 +281,8 @@ def main():
     # Set random seed
     set_seed(args.seed)
     logger.info(f"Random seed set to: {args.seed}")
+
+    torch.autograd.set_detect_anomaly(True)
     
     # Initialize configurations
     logger.info("Initializing configurations...")

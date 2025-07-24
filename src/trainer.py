@@ -6,11 +6,12 @@ import itertools
 import math
 import random
 from .evaluation_metrics import EvaluationMetrics 
-from torch.amp import autocast, GradScaler
+# from torch.amp import autocast, GradScaler # COMMENTED OUT: Disabling mixed precision
 from tqdm import tqdm
 import os
 import logging
 import matplotlib.pyplot as plt
+import sys # Import sys for printing to stderr
 
 class Trainer:
     def __init__(self, model, tokenizer, config, device='cuda'):
@@ -40,7 +41,7 @@ class Trainer:
             ignore_index=self.pad_token_id, 
             label_smoothing=self.config.label_smoothing
         )
-        self.scaler = GradScaler()
+        # self.scaler = GradScaler() # COMMENTED OUT: Disabling mixed precision
         self.evaluator = EvaluationMetrics(tokenizer)
         self.global_step = 0
         
@@ -72,39 +73,39 @@ class Trainer:
                 src, tgt = batch['src'].to(self.device), batch['tgt'].to(self.device)
                 tgt_input, tgt_output = tgt[:, :-1], tgt[:, 1:]
 
-                with autocast('cuda', enabled=True, dtype=torch.float16):
-                    output = self.model(src, tgt_input)
-                    
-                    # Create mask for non-padding tokens
-                    mask = (tgt_output != self.pad_token_id)
-                    
-                    # Calculate loss only on non-padding tokens
-                    loss = self.criterion(
-                        output.reshape(-1, output.size(-1)), 
-                        tgt_output.reshape(-1)
-                    )
+                # with autocast('cuda', enabled=True, dtype=torch.float16): # -----> Disabling mixed precision
+                # Use float32 directly by removing autocast
+                output = self.model(src, tgt_input)
+                
+                # Create mask for non-padding tokens
+                # mask = (tgt_output != self.pad_token_id) # This mask is not used here, can be removed if not used elsewhere for loss.
 
-                    # 1. Scale the loss and compute gradients
-                    self.scaler.scale(loss).backward()
-                    
-                    # Track loss for analysis
-                    loss_values.append(loss.item() * accumulation_steps)
-                    
+                # Calculate loss only on non-padding tokens
+                loss = self.criterion(
+                    output.reshape(-1, output.size(-1)), 
+                    tgt_output.reshape(-1)
+                )
+
+                # 1. Compute gradients (no scaling needed for float32)
+                loss.backward()
+                
+                # Track loss for analysis
+                loss_values.append(loss.item() * accumulation_steps)
+                
 
                 if (batch_idx + 1) % accumulation_steps == 0:
-                # 2. Unscale gradients before clipping and stepping
-                    self.scaler.unscale_(self.optimizer)
-
+                    # 2. No unscaling needed for float32
                     
                     if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
                         self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
 
                     # 4. Clip gradients
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5) # Using 0.5 as discussed
                     
                     # 5. Step the optimizer and scheduler
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                    self.optimizer.step() # Direct optimizer step
+                    # self.scaler.step(self.optimizer) -------> Disabling mixed precision
+                    # self.scaler.update() -----> Disabling mixed precision
                     self.scheduler.step()
                     self.optimizer.zero_grad()
                     self.global_step += 1
@@ -122,13 +123,18 @@ class Trainer:
                     continue
                 else:
                     raise e
+            except Exception as e: # Catch other potential errors during training batch
+                self.logger.error(f"Error during training batch {batch_idx}: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                continue # Skip this batch
 
-        # Handle remaining gradients
         if len(train_loader) % accumulation_steps != 0:
-            self.scaler.unscale_(self.optimizer)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            # self.scaler.unscale_(self.optimizer) 
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5) # Using 0.5
+            self.optimizer.step() # Direct optimizer step
+            # self.scaler.step(self.optimizer) 
+            # self.scaler.update() 
             self.optimizer.zero_grad()
         
         # Loss progression analysis

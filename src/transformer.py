@@ -16,6 +16,9 @@ class EnhancedTransformer(nn.Module):
         
         self.encoder = Encoder(config.n_layers, config.d_model, config.n_heads, config.d_ff, config.dropout)
         self.decoder = Decoder(config.n_layers, config.d_model, config.n_heads, config.d_ff, config.dropout)
+
+        self.final_encoder_norm = nn.LayerNorm(config.d_model)
+        self.final_decoder_norm = nn.LayerNorm(config.d_model)
         
         self.output_projection = nn.Linear(config.d_model, config.vocab_size)
         
@@ -59,9 +62,12 @@ class EnhancedTransformer(nn.Module):
         
         src_emb = self.pos_encoding(self.src_embedding(src))
         encoder_output = self.encoder(src_emb, src_mask)
+
+        encoder_output = self.final_encoder_norm(encoder_output)
         
         tgt_emb = self.pos_encoding(self.tgt_embedding(tgt))
         decoder_output = self.decoder(tgt_emb, encoder_output, tgt_mask, src_mask)
+        decoder_output = self.final_decoder_norm(decoder_output)
         
         logits = self.output_projection(decoder_output)
         

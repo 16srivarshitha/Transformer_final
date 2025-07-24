@@ -56,25 +56,40 @@ class EnhancedTransformer(nn.Module):
         if src_mask is None or tgt_mask is None:
             src_mask, tgt_mask = self.create_mask(src, tgt)
         
-        # DEBUG: Print mask shapes and values
-        # print(f"DEBUG: src_mask shape: {src_mask.shape}, tgt_mask shape: {tgt_mask.shape}")
-        # print(f"DEBUG: src_mask sample: {src_mask[0, 0, 0, :10]}")
-        # print(f"DEBUG: tgt_mask sample: {tgt_mask[0, 0, :5, :5]}")
+        # *** ADD THESE CHECKS ***
+        if torch.isnan(src).any():
+            print("NaN detected in source input to forward pass!")
+        if torch.isnan(tgt).any():
+            print("NaN detected in target input to forward pass!")
         
         src_emb = self.pos_encoding(self.src_embedding(src))
+        
+        # Check embeddings
+        if torch.isnan(src_emb).any():
+            print("NaN in source embeddings!")
+        
         encoder_output = self.encoder(src_emb, src_mask)
-
+        
+        # Check encoder output
+        if torch.isnan(encoder_output).any():
+            print("NaN in encoder output!")
+        
         encoder_output = self.final_encoder_norm(encoder_output)
         
         tgt_emb = self.pos_encoding(self.tgt_embedding(tgt))
-        decoder_output = self.decoder(tgt_emb, encoder_output, tgt_mask, src_mask)
-        decoder_output = self.final_decoder_norm(decoder_output)
         
+        if torch.isnan(tgt_emb).any():
+            print("NaN in target embeddings!")
+        
+        decoder_output = self.decoder(tgt_emb, encoder_output, tgt_mask, src_mask)
+        
+        if torch.isnan(decoder_output).any():
+            print("NaN in decoder output!")
+        
+        decoder_output = self.final_decoder_norm(decoder_output)
         logits = self.output_projection(decoder_output)
         
-        # DEBUG: Check output distribution
-        # print(f"DEBUG: logits shape: {logits.shape}")
-        # print(f"DEBUG: logits range: {logits.min():.3f} to {logits.max():.3f}")
-        # print(f"DEBUG: logits std: {logits.std():.3f}")
+        if torch.isnan(logits).any():
+            print("NaN in final logits!")
         
         return logits

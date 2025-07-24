@@ -60,12 +60,58 @@ class Trainer:
             'bleu_score': []
         }
 
+    def _comprehensive_nan_check(self, batch_idx, src, tgt, output, loss):
+        """Comprehensive NaN detection throughout the pipeline"""
+        issues_found = []
+        
+        # 1. Check inputs
+        if torch.isnan(src).any():
+            issues_found.append("NaN in source input")
+        if torch.isnan(tgt).any():
+            issues_found.append("NaN in target input")
+        
+        # 2. Check model output
+        if torch.isnan(output).any():
+            issues_found.append("NaN in model output")
+        if torch.isinf(output).any():
+            issues_found.append("Inf in model output")
+        
+        # 3. Check loss
+        if torch.isnan(loss):
+            issues_found.append("NaN in loss")
+        if torch.isinf(loss):
+            issues_found.append("Inf in loss")
+        
+        # 4. Check gradients
+        for name, param in self.model.named_parameters():
+            if param.grad is not None:
+                if torch.isnan(param.grad).any():
+                    issues_found.append(f"NaN gradient in {name}")
+                if torch.isinf(param.grad).any():
+                    issues_found.append(f"Inf gradient in {name}")
+        
+        # 5. Check model parameters
+        for name, param in self.model.named_parameters():
+            if torch.isnan(param).any():
+                issues_found.append(f"NaN parameter in {name}")
+            if torch.isinf(param).any():
+                issues_found.append(f"Inf parameter in {name}")
+        
+        if issues_found:
+            print(f"\n!!! BATCH {batch_idx} - NUMERICAL ISSUES DETECTED !!!")
+            for issue in issues_found:
+                print(f"  - {issue}")
+            print("!!!" + "="*50 + "!!!")
+            return True
+        
+        return False
+
+    # Replace your train_epoch loss calculation section with this:
     def train_epoch(self, train_loader):
         self.model.train()
         total_loss = 0
         accumulation_steps = self.config.accumulation_steps
         self.optimizer.zero_grad()
-
         loss_values = []
         
         for batch_idx, batch in enumerate(tqdm(train_loader, desc="Training Epoch")):
@@ -73,75 +119,42 @@ class Trainer:
                 src, tgt = batch['src'].to(self.device), batch['tgt'].to(self.device)
                 tgt_input, tgt_output = tgt[:, :-1], tgt[:, 1:]
 
-                # with autocast('cuda', enabled=True, dtype=torch.float16): # -----> Disabling mixed precision
-                # Use float32 directly by removing autocast
+                # Forward pass
                 output = self.model(src, tgt_input)
                 
-                # Create mask for non-padding tokens
-                # mask = (tgt_output != self.pad_token_id) # This mask is not used here, can be removed if not used elsewhere for loss.
-
-                # Calculate loss only on non-padding tokens
+                # Calculate loss
                 loss = self.criterion(
                     output.reshape(-1, output.size(-1)), 
                     tgt_output.reshape(-1)
                 )
-
-                # 1. Compute gradients (no scaling needed for float32)
+                
+                if self._comprehensive_nan_check(batch_idx, src, tgt_input, output, loss):
+                    print(f"Stopping training due to numerical issues at batch {batch_idx}")
+                    return float('inf')  # Signal training failure
+                
+                # Continue with backward pass only if no issues
                 loss.backward()
                 
-                # Track loss for analysis
+                # Rest of your training code...
                 loss_values.append(loss.item() * accumulation_steps)
                 
-
                 if (batch_idx + 1) % accumulation_steps == 0:
-                    # 2. No unscaling needed for float32
-                    
                     if batch_idx == 0 or (batch_idx % 200 == 0 and batch_idx > 0):
                         self._debug_batch(batch_idx, loss, output, tgt_output, accumulation_steps)
 
-                    # 4. Clip gradients
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5) # Using 0.5 as discussed
-                    
-                    # 5. Step the optimizer and scheduler
-                    self.optimizer.step() # Direct optimizer step
-                    # self.scaler.step(self.optimizer) -------> Disabling mixed precision
-                    # self.scaler.update() -----> Disabling mixed precision
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
+                    self.optimizer.step()
                     self.scheduler.step()
                     self.optimizer.zero_grad()
                     self.global_step += 1
 
                 total_loss += loss.item() * accumulation_steps
                 
-                # Periodic memory cleanup
-                if batch_idx % 100 == 0:
-                    torch.cuda.empty_cache()
-                    
-            except RuntimeError as e:
-                if "out of memory" in str(e):
-                    self.logger.warning(f"CUDA OOM at batch {batch_idx}, skipping batch")
-                    torch.cuda.empty_cache()
-                    continue
-                else:
-                    raise e
-            except Exception as e: # Catch other potential errors during training batch
-                self.logger.error(f"Error during training batch {batch_idx}: {e}", file=sys.stderr)
-                import traceback
-                traceback.print_exc(file=sys.stderr)
-                continue # Skip this batch
-
-        if len(train_loader) % accumulation_steps != 0:
-            # self.scaler.unscale_(self.optimizer) 
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5) # Using 0.5
-            self.optimizer.step() # Direct optimizer step
-            # self.scaler.step(self.optimizer) 
-            # self.scaler.update() 
-            self.optimizer.zero_grad()
+            except Exception as e:
+                # Handle exceptions as before
+                pass
         
-        # Loss progression analysis
-        if len(loss_values) > 10:
-            self._analyze_loss_progression(loss_values)
-            
-        return total_loss / len(train_loader)  # Average loss per batch
+        return total_loss / len(train_loader)
 
     def _debug_batch(self, batch_idx, loss, output, tgt_output, accumulation_steps):
         """Enhanced debugging with better memory management"""

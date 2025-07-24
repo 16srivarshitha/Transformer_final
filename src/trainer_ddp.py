@@ -37,7 +37,7 @@ class Trainer:
             ignore_index=self.pad_token_id, 
             label_smoothing=config.label_smoothing
         )
-        self.scaler = GradScaler()
+        self.scaler = GradScaler(init_scale=2.**10)
         self.global_step = 0
         self.current_epoch = 0
 

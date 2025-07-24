@@ -22,17 +22,21 @@ class DecoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x, encoder_output, tgt_mask=None, src_mask=None):
-        # Masked self-attention + residual
-        attn_output = self.self_attention(x, x, x, tgt_mask)
-        x = self.norm1(x + self.dropout(attn_output))
+        # Pre-LN Masked self-attention + residual
+        norm_x_self_attn = self.norm1(x) # Apply LayerNorm BEFORE self-attention
+        attn_output = self.self_attention(norm_x_self_attn, norm_x_self_attn, norm_x_self_attn, tgt_mask)
+        x = x + self.dropout(attn_output) # Residual connection (Add)
         
-        # Cross-attention + residual
-        cross_attn_output = self.cross_attention(x, encoder_output, encoder_output, src_mask)
-        x = self.norm2(x + self.dropout(cross_attn_output))
+        # Pre-LN Cross-attention + residual
+        norm_x_cross_attn = self.norm2(x) # Apply LayerNorm BEFORE cross-attention
+        # Note: encoder_output is already normalized by the Encoder's final LayerNorm 
+        cross_attn_output = self.cross_attention(norm_x_cross_attn, encoder_output, encoder_output, src_mask)
+        x = x + self.dropout(cross_attn_output) # Residual connection (Add)
         
-        # Feed-forward + residual
-        ff_output = self.feed_forward(x)
-        x = self.norm3(x + self.dropout(ff_output))
+        # Pre-LN Feed-forward + residual
+        norm_x_ff = self.norm3(x) # Apply LayerNorm BEFORE feed-forward
+        ff_output = self.feed_forward(norm_x_ff)
+        x = x + self.dropout(ff_output) # Residual connection (Add)
         
         return x
 

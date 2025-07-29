@@ -363,5 +363,120 @@ def main():
         logger.error(traceback.format_exc())
         sys.exit(1)
 
+    def validate_dataset_splits(train_loader, val_loader, tokenizer, logger):
+        logger.info("Validating dataset splits for leakage...")
+        
+        # Sample a few batches from each split
+        train_samples = []
+        val_samples = []
+        
+        # Get training samples
+        for i, batch in enumerate(train_loader):
+            if i >= 10:  # Check first 10 batches
+                break
+            for j in range(min(4, batch['src'].size(0))):  # Max 4 samples per batch
+                src_text = tokenizer.decode(batch['src'][j].tolist(), skip_special_tokens=True).strip()
+                tgt_text = tokenizer.decode(batch['tgt'][j].tolist(), skip_special_tokens=True).strip()
+                train_samples.append((src_text.lower(), tgt_text.lower()))
+        
+        # Get validation samples
+        for i, batch in enumerate(val_loader):
+            if i >= 10:  # Check first 10 batches
+                break
+            for j in range(min(4, batch['src'].size(0))):  # Max 4 samples per batch
+                src_text = tokenizer.decode(batch['src'][j].tolist(), skip_special_tokens=True).strip()
+                tgt_text = tokenizer.decode(batch['tgt'][j].tolist(), skip_special_tokens=True).strip()
+                val_samples.append((src_text.lower(), tgt_text.lower()))
+        
+        # Check for overlaps
+        train_set = set(train_samples)
+        val_set = set(val_samples)
+        overlap = train_set.intersection(val_set)
+        
+        if overlap:
+            logger.error(f"CRITICAL: Found {len(overlap)} overlapping samples between train and validation!")
+            for i, (src, tgt) in enumerate(list(overlap)[:3]):  # Show first 3
+                logger.error(f"  Overlap {i+1}: '{src[:50]}...' -> '{tgt[:50]}...'")
+            return False
+        else:
+            logger.info(f" Dataset validation passed - no overlap found in sampled data")
+            return True
+    
+    def diagnose_bleu_issue(model, val_loader, tokenizer, device):
+        print("\n" + "="*60)
+        print("DIAGNOSING BLEU SCORE ISSUE")
+        print("="*60)
+        
+        model.eval()
+        evaluator = EvaluationMetrics(tokenizer)
+        
+        # Take just first batch for detailed analysis
+        batch = next(iter(val_loader))
+        src = batch['src'].to(device)
+        tgt = batch['tgt'].to(device)
+        
+        with torch.no_grad():
+            generated = evaluator.greedy_decode(model, src, device)
+        
+        print(f"Analyzing {src.size(0)} samples from first validation batch:\n")
+        
+        identical_to_source = 0
+        identical_to_target = 0
+        high_overlap = 0
+        
+        for i in range(min(5, src.size(0))):  # Check first 5 samples
+            # Get texts
+            src_text = tokenizer.decode(src[i].cpu().tolist(), skip_special_tokens=True).strip()
+            
+            tgt_tokens = tgt[i].cpu().tolist()
+            if tgt_tokens[0] == tokenizer.bos_token_id:
+                tgt_tokens = tgt_tokens[1:]
+            if tokenizer.eos_token_id in tgt_tokens:
+                tgt_tokens = tgt_tokens[:tgt_tokens.index(tokenizer.eos_token_id)]
+            tgt_text = tokenizer.decode(tgt_tokens, skip_special_tokens=True).strip()
+            
+            pred_tokens = generated[i].cpu().tolist()
+            if tokenizer.eos_token_id in pred_tokens:
+                pred_tokens = pred_tokens[:pred_tokens.index(tokenizer.eos_token_id)]
+            pred_text = tokenizer.decode(pred_tokens, skip_special_tokens=True).strip()
+            
+            print(f"Sample {i+1}:")
+            print(f"  Source (EN): '{src_text}'")
+            print(f"  Target (DE): '{tgt_text}'")
+            print(f"  Prediction: '{pred_text}'")
+            
+            # Check for issues
+            if pred_text.lower() == src_text.lower():
+                print(f"  🚨 ISSUE: Prediction identical to source!")
+                identical_to_source += 1
+            elif pred_text.lower() == tgt_text.lower():
+                print(f"  🚨 ISSUE: Prediction identical to target!")
+                identical_to_target += 1
+            
+            # Check word overlap
+            pred_words = set(pred_text.lower().split())
+            tgt_words = set(tgt_text.lower().split())
+            if len(pred_words) > 0 and len(tgt_words) > 0:
+                overlap = len(pred_words.intersection(tgt_words)) / len(tgt_words.union(pred_words))
+                if overlap > 0.8:
+                    print(f"  ⚠️  High word overlap: {overlap:.2f}")
+                    high_overlap += 1
+            
+            print()
+        
+        print("DIAGNOSTIC SUMMARY:")
+        print(f"  Identical to source: {identical_to_source}/5")
+        print(f"  Identical to target: {identical_to_target}/5") 
+        print(f"  High word overlap: {high_overlap}/5")
+        
+        if identical_to_target > 2:
+            print("\n🚨 LIKELY CAUSE: Data leakage - model seeing targets during training!")
+        elif identical_to_source > 2:
+            print("\n🚨 LIKELY CAUSE: Model just copying input - not learning translation!")
+        elif high_overlap > 3:
+            print("\n⚠️  POSSIBLE CAUSE: Very similar train/val data or simple dataset!")
+        
+        print("="*60)
+
 if __name__ == '__main__':
     main()

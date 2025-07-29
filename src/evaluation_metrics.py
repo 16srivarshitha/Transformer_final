@@ -15,7 +15,7 @@ class EvaluationMetrics:
         self.eos_token_id = tokenizer.eos_token_id
         
         print(f"EvaluationMetrics initialized. BOS: {self.bos_token_id}, EOS: {self.eos_token_id}, PAD: {self.pad_token_id}")
-    
+
     def generate_translations(self, model, data_loader, device, debug=True):
         model.eval()
         predictions = []
@@ -23,9 +23,9 @@ class EvaluationMetrics:
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(data_loader, desc="Generating Translations")):
-                try: # <--- Start of try block for batch processing
+                try:
                     src = batch['src'].to(device)
-                    tgt = batch['tgt'].to(device) # Note: tgt is loaded but primarily used for reference, not model input for generation
+                    tgt = batch['tgt'].to(device)
 
                     generated = self.greedy_decode(model, src, device)
                     
@@ -44,47 +44,45 @@ class EvaluationMetrics:
                             pred_tokens = pred_tokens[:pred_tokens.index(self.eos_token_id)]
                         
                         # Decode to text
-                        pred_text = self.tokenizer.decode(pred_tokens, skip_special_tokens=True)
-                        ref_text = self.tokenizer.decode(ref_tokens, skip_special_tokens=True)
+                        pred_text = self.tokenizer.decode(pred_tokens, skip_special_tokens=True).strip()
+                        ref_text = self.tokenizer.decode(ref_tokens, skip_special_tokens=True).strip()
 
-                        predictions.append(pred_text)
-                        references.append(ref_text)
+                        # Only add non-empty predictions and references
+                        if pred_text and ref_text:
+                            predictions.append(pred_text)
+                            references.append(ref_text)
                         
                         # Debug output for first few samples
-                        if debug and batch_idx == 0 and i < 3:
-                            print(f"\nDEBUG Sample {i}:")
-                            print(f"  Source tokens: {src[i].cpu().tolist()[:20]}...")
-                            print(f"  Source text: {self.tokenizer.decode(src[i].cpu().tolist(), skip_special_tokens=True)[:100]}...")
-                            print(f"  Pred tokens: {pred_tokens[:20]}...")
-                            print(f"  Pred text: '{pred_text}'")
-                            print(f"  Ref tokens: {ref_tokens[:20]}...")
-                            print(f"  Ref text: '{ref_text}'")
-                            pass
-                except RuntimeError as e:
-                    if "out of memory" in str(e):
-                        print(f"\n[WARNING] CUDA OOM during Translation generation for a batch. Skipping this batch. Try reducing batch_size or max_length.", file=sys.stderr)
-                        torch.cuda.empty_cache() 
-                        continue 
-                    else:
-                        raise e 
-                except Exception as e:
-                    print(f"\n[ERROR] General error during Translation generation for a batch: {e}", file=sys.stderr)
-                    import traceback
-                    traceback.print_exc(file=sys.stderr)
-                    continue
+                        if debug and batch_idx < 3 and i < 2:  # Reduced debug output
+                            print(f"\nDEBUG Sample {batch_idx}-{i}:")
+                            print(f"  Source: {self.tokenizer.decode(src[i].cpu().tolist(), skip_special_tokens=True)[:100]}")
+                            print(f"  Pred: '{pred_text}'")
+                            print(f"  Ref:  '{ref_text}'")
+                            
+                            # Check if prediction is just copying source
+                            src_text = self.tokenizer.decode(src[i].cpu().tolist(), skip_special_tokens=True).strip()
+                            if pred_text.lower() == src_text.lower():
+                                print(f" WARNING: Prediction identical to source!")
+                            if pred_text.lower() == ref_text.lower():
+                                print(f" WARNING: Prediction identical to reference!")
 
+                except Exception as e:
+                    print(f"\n[ERROR] Error during translation generation: {e}")
+                    continue
                 
-                
-                # Only process a subset for speed
-                if batch_idx >= 49:  # Process 50 batches
+                if batch_idx >= 199:  
                     break
         
         if debug:
-            print(f"\nSample Prediction: {predictions[0]}")
-            print(f"Sample Reference:  {references[0]}")
-            print(f"Sample prediction tokens: {pred_tokens}")
-            print(f"Sample reference tokens: {ref_tokens}")
-            print(f"Are they identical?: {pred_tokens == ref_tokens}")
+            print(f"\nEVALUATION SUMMARY:")
+            print(f"Total predictions: {len(predictions)}")
+            print(f"Average prediction length: {sum(len(p.split()) for p in predictions) / len(predictions):.1f} words")
+            print(f"Average reference length: {sum(len(r.split()) for r in references) / len(references):.1f} words")
+            
+            # Check for suspicious patterns
+            identical_count = sum(1 for p, r in zip(predictions, references) if p.lower() == r.lower())
+            if identical_count > len(predictions) * 0.1:  # More than 10% identical
+                print(f"  WARNING: {identical_count}/{len(predictions)} predictions identical to references!")
         
         return predictions, references
     

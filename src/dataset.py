@@ -140,24 +140,61 @@ def create_dataloaders(
 
             leaked_samples = [s for s in val_data if s['de'] in train_de_sentences]
 
-            if len(leaked_samples) > 0:
-                print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                print("!!!!!!!!!!!!!!  FATAL LEAKAGE CONFIRMED  !!!!!!!!!!!!!!")
-                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                print(f"Found {len(leaked_samples)} validation samples that also exist in the training data.")
-                print(f"Example Leaked DE Sentence: '{leaked_samples[0]['de']}'")
-                print("Proceeding by filtering out leaked samples from validation set.")
+            # Replace the leakage check section in src/dataset.py with this:
 
-                # --- ADDED LOGIC HERE TO FILTER LEAKED SAMPLES ---
-                leaked_de_sentences_set = {s['de'] for s in leaked_samples} # Create a set of DE sentences to filter
-                original_val_size = len(val_data)
-                val_data = val_data.filter(lambda example: example['de'] not in leaked_de_sentences_set)
-                print(f"Filtered {original_val_size - len(val_data)} samples from validation set.")
-                print("---  Definitive Leakage Check Passed (after filtering): The data splits are now correctly separated. ---\n")
-                # --- END ADDED LOGIC ---
-
+        def check_and_remove_leakage(train_data, val_data, rank=0):
+            if rank == 0:
+                print("\n--- PERFORMING COMPREHENSIVE LEAKAGE CHECK ---")
+                
+                # Create sets of all translation pairs from training data
+                train_pairs = set()
+                for sample in train_data:
+                    if 'translation' in sample:
+                        en_text = sample['translation']['en'].strip().lower()
+                        de_text = sample['translation']['de'].strip().lower()
+                    else:
+                        en_text = sample['en'].strip().lower()
+                        de_text = sample['de'].strip().lower()
+                    train_pairs.add((en_text, de_text))
+                
+                print(f"Training set contains {len(train_pairs)} unique translation pairs")
+                
+                # Check validation set for leakage
+                leaked_indices = []
+                for idx, sample in enumerate(val_data):
+                    if 'translation' in sample:
+                        en_text = sample['translation']['en'].strip().lower()
+                        de_text = sample['translation']['de'].strip().lower()
+                    else:
+                        en_text = sample['en'].strip().lower()
+                        de_text = sample['de'].strip().lower()
+                    
+                    # Check if this exact pair exists in training
+                    if (en_text, de_text) in train_pairs:
+                        leaked_indices.append(idx)
+                
+                if len(leaked_indices) > 0:
+                    print(f"\n!!! LEAKAGE DETECTED: {len(leaked_indices)} validation samples found in training set !!!")
+                    print("Removing leaked samples from validation set...")
+                    
+                    # Remove leaked samples
+                    original_val_size = len(val_data)
+                    # Convert to list and filter out leaked indices
+                    val_data_list = [sample for idx, sample in enumerate(val_data) if idx not in set(leaked_indices)]
+                    
+                    print(f"Filtered validation set: {original_val_size} -> {len(val_data_list)} samples")
+                    return val_data_list
+                else:
+                    print(" No leakage detected - validation set is clean")
+                    return list(val_data)
             else:
-                print("---  Definitive Leakage Check Passed: The data splits are correctly separated. ---\n")
+                return list(val_data)
+
+        # Then in create_dataloaders function, replace the leakage check section with:
+        if rank == 0:
+            val_data_list = check_and_remove_leakage(train_data, val_data, rank)
+        else:
+            val_data_list = list(val_data)
 
         if subset_size is not None and subset_size < len(train_data):
             if rank == 0:

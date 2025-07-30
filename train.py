@@ -456,51 +456,38 @@ def main():
     
     if args.diagnose_bleu:
         logger.info("Running BLEU diagnostic...")
-        diagnose_bleu_issue(model, val_loader, tokenizer, device)
-        # Exit after diagnostic if requested
-        response = input("\nContinue with training? (y/n): ").lower()
-        logger.info(f"User response: '{response}'")  
-        if response != 'y':
-            logger.info("Training cancelled by user after diagnostic")
+        try:
+            diagnose_bleu_issue(model, val_loader, tokenizer, device)
+        except Exception as e:
+            logger.error(f"Diagnostic failed: {e}")
+        
+        print("\n" + "="*60)
+        print("Diagnostic completed. Continue with training?")
+        print("="*60)
+        
+        try:
+            import sys
+            sys.stdout.flush()  # Force flush output
+            response = input("Type 'y' to continue or 'n' to exit: ").strip().lower()
+            print(f"DEBUG: You entered '{response}'")  # Debug output
+            
+            if response not in ['y', 'yes']:
+                logger.info(f"Training cancelled by user (response: '{response}')")
+                print("Training cancelled. Exiting...")
+                return
+            else:
+                logger.info("User chose to continue with training")
+                print("Continuing with training...")
+                
+        except KeyboardInterrupt:
+            logger.info("Training cancelled by user (Ctrl+C)")
             return
-        else:
-            logger.info("User chose to continue with training") 
+        except Exception as e:
+            logger.error(f"Input handling error: {e}")
+            logger.info("Assuming user wants to continue...")
     
-    # Initial validation check
-    if args.validate_first:
-        logger.info("About to run initial validation check...")  
-        run_validation_check(trainer, val_loader, logger)
-        logger.info("Initial validation check completed")  
-    
-    # Start training
-    logger.info("About to start training...")  
-    logger.info("="*60)
-    logger.info("           STARTING TRAINING")
-    logger.info("="*60)
-    
-    try:
-        logger.info("Calling trainer.train()...")  
-        trainer.train(train_loader, val_loader)
-        logger.info("Training completed successfully!")
-
-        trainer.plot_history()
-        
-    except KeyboardInterrupt:
-        logger.info("Training interrupted by user")
-        # Save current state
-        checkpoint_path = Path(args.save_dir) / "interrupted_checkpoint.pth"
-        torch.save({
-            'model_state_dict': model.state_dict(),
-            'epoch': trainer.global_step,
-            'config': training_config
-        }, checkpoint_path)
-        logger.info(f"Saved interrupted state to: {checkpoint_path}")
-        
-    except Exception as e:
-        logger.error(f"Training failed with error: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        sys.exit(1)
+    logger.info("About to proceed with training setup...")
+    sys.stdout.flush()
 
 if __name__ == '__main__':
     main()

@@ -458,20 +458,28 @@ def main():
         logger.info("Running BLEU diagnostic...")
         diagnose_bleu_issue(model, val_loader, tokenizer, device)
         # Exit after diagnostic if requested
-        if input("\nContinue with training? (y/n): ").lower() != 'y':
+        response = input("\nContinue with training? (y/n): ").lower()
+        logger.info(f"User response: '{response}'")  
+        if response != 'y':
             logger.info("Training cancelled by user after diagnostic")
             return
+        else:
+            logger.info("User chose to continue with training") 
     
     # Initial validation check
     if args.validate_first:
+        logger.info("About to run initial validation check...")  
         run_validation_check(trainer, val_loader, logger)
+        logger.info("Initial validation check completed")  
     
     # Start training
+    logger.info("About to start training...")  
     logger.info("="*60)
     logger.info("           STARTING TRAINING")
     logger.info("="*60)
     
     try:
+        logger.info("Calling trainer.train()...")  
         trainer.train(train_loader, val_loader)
         logger.info("Training completed successfully!")
 

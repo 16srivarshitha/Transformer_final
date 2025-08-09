@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 import json
-import sys
+
 
 from config.model_config import ModelConfig
 from config.training_config import TrainingConfig
@@ -467,7 +467,6 @@ def main():
         print("="*60)
         
         try:
-            import sys
             sys.stdout.flush()  # Force flush output
             response = input("Type 'y' to continue or 'n' to exit: ").strip().lower()
             print(f"DEBUG: You entered '{response}'")  # Debug output

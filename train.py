@@ -463,31 +463,39 @@ def main():
             logger.error(f"Diagnostic failed: {e}")
         
         print("\n" + "="*60)
-        print("Diagnostic completed. Continue with training?")
+        print("Diagnostic completed. Auto-continuing with training...")
         print("="*60)
-        
-        # try:
-        #     sys.stdout.flush()  # Force flush output
-        #     response = input("Type 'y' to continue or 'n' to exit: ").strip().lower()
-        #     print(f"DEBUG: You entered '{response}'")  # Debug output
+        # Commented out manual input for non-interactive environment
+        # To enable manual confirmation, uncomment below and remove auto-continue lines.
+        """
+        try:
+            sys.stdout.flush()  # Force flush output
+            response = input("Type 'y' to continue or 'n' to exit: ").strip().lower()
+            print(f"DEBUG: You entered '{response}'")  # Debug output
             
-        #     if response not in ['y', 'yes']:
-        #         logger.info(f"Training cancelled by user (response: '{response}')")
-        #         print("Training cancelled. Exiting...")
-        #         return
-        #     else:
-        #         logger.info("User chose to continue with training")
-        #         print("Continuing with training...")
+            if response not in ['y', 'yes']:
+                logger.info(f"Training cancelled by user (response: '{response}')")
+                print("Training cancelled. Exiting...")
+                return
+            else:
+                logger.info("User chose to continue with training")
+                print("Continuing with training...")
                 
-        # except KeyboardInterrupt:
-        #     logger.info("Training cancelled by user (Ctrl+C)")
-        #     return
-        # except Exception as e:
-        #     logger.error(f"Input handling error: {e}")
-        #     logger.info("Assuming user wants to continue...")
+        except KeyboardInterrupt:
+            logger.info("Training cancelled by user (Ctrl+C)")
+            return
+        except Exception as e:
+            logger.error(f"Input handling error: {e}")
+            logger.info("Assuming user wants to continue...")
+        """
+    else:
+        logger.info("Skipping BLEU diagnostic and proceeding with training...")
     
-    logger.info("Auto-continuing training after BLEU diagnostic.")
-print("Continuing with training...")
+    logger.info("Starting training...")
+    print("Continuing with training...")
+    trainer.train(train_loader, val_loader)
+
 
 if __name__ == '__main__':
     main()
+    

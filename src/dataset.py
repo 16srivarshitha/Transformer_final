@@ -73,7 +73,6 @@ def check_and_remove_leakage(train_data, val_data, rank=0):
     if rank == 0:
         print("\n--- PERFORMING COMPREHENSIVE LEAKAGE CHECK ---")
         
-        # Create sets of all translation pairs from training data
         train_pairs = set()
         for sample in train_data:
             if 'translation' in sample:
@@ -82,11 +81,10 @@ def check_and_remove_leakage(train_data, val_data, rank=0):
             else:
                 en_text = sample['en'].strip().lower()
                 de_text = sample['de'].strip().lower()
-            train_pairs.add((en_text, de_text))
+            train_pairs.add(f"{en_text}||{de_text}")  # NOTE: use string for uniqueness
         
-        print(f"Training set contains {len(train_pairs)} unique translation pairs")
+        print(f"[Leakage Check] Training set has {len(train_pairs)} unique translation pairs.")
         
-        # Check validation set for leakage
         leaked_indices = []
         for idx, sample in enumerate(val_data):
             if 'translation' in sample:
@@ -95,27 +93,30 @@ def check_and_remove_leakage(train_data, val_data, rank=0):
             else:
                 en_text = sample['en'].strip().lower()
                 de_text = sample['de'].strip().lower()
-            
-            # Check if this exact pair exists in training
-            if (en_text, de_text) in train_pairs:
+            key = f"{en_text}||{de_text}"
+            if key in train_pairs:
                 leaked_indices.append(idx)
-        
+
         if len(leaked_indices) > 0:
-            print(f"\n!!! LEAKAGE DETECTED: {len(leaked_indices)} validation samples found in training set !!!")
+            print(f"\n!!! LEAKAGE DETECTED: {len(leaked_indices)} validation samples overlap with train set !!!")
             print("Removing leaked samples from validation set...")
-            
-            # Remove leaked samples
-            original_val_size = len(val_data)
-            # Convert to list and filter out leaked indices
             val_data_list = [sample for idx, sample in enumerate(val_data) if idx not in set(leaked_indices)]
-            
-            print(f"Filtered validation set: {original_val_size} -> {len(val_data_list)} samples")
-            return val_data_list
+            print(f"Validation set: {len(val_data)} --> {len(val_data_list)} after removal.")
+            print("[Leakage Check] First 3 overlaps:")
+            for i in leaked_indices[:3]:
+                if 'translation' in val_data[i]:
+                    print('SRC:', val_data[i]['translation']['en'])
+                    print('TGT:', val_data[i]['translation']['de'])
+                else:
+                    print('SRC:', val_data[i]['en'])
+                    print('TGT:', val_data[i]['de'])
         else:
-            print("✓ No leakage detected - validation set is clean")
-            return list(val_data)
+            print(" No train/val overlaps detected.")
+            val_data_list = list(val_data)
+        return val_data_list
     else:
         return list(val_data)
+
 
 def create_dataloaders(
     model_config,
